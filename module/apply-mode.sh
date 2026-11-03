@@ -37,7 +37,7 @@ for node in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
   avail="${node%/scaling_governor}/scaling_available_governors"
   [ -r "$avail" ] || { skipped=$((skipped+1)); continue; }
   current=$(cat "$node" 2>/dev/null)
-  if ! grep -Fq "|$node|" "$STATE"; then
+  if ! grep -Fq "$node|" "$STATE"; then
     printf '%s|%s\n' "$node" "$current" >> "$STATE"
   fi
   choices=$(cat "$avail" 2>/dev/null)
