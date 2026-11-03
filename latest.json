@@ -1,12 +1,12 @@
 {
-  "name": "K70 Turbo Performance V2 Console",
-  "version": "2.1",
-  "status": "已更新",
+  "name": "K70 Turbo 性能监控台 V2（中文版）",
+  "version": "2.2",
+  "status": "已发布",
   "updated_at": "2026-11-03",
   "file": "K70Turbo_Performance_V2_Console.zip",
-  "size": 3848,
+  "size": 4098,
   "notes": [
-    "KernelSU 模块合并版，包含只读硬件检测与控制台 Action。",
-    "仅读取设备信息，不主动修改 CPU/GPU 频率、温控、电压或调度参数。"
+    "全中文模块名称、说明文档与监控控制台界面。",
+    "只读检测设备信息，不修改 CPU/GPU 频率、温控、电压或调度参数。"
   ]
 }
