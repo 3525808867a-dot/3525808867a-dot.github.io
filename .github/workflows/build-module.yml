@@ -21,14 +21,14 @@ jobs:
           zip -r "../K70Turbo_实时性能控制_V4.0.zip" module.prop webroot apply-mode.sh
           cd ..
           unzip -t "K70Turbo_实时性能控制_V4.0.zip"
-          unzip -l "K70Turbo_WebUI_中文控制台_V3.0.zip"
-          sha256sum "K70Turbo_WebUI_中文控制台_V3.0.zip" | tee SHA256SUMS.txt
+          unzip -l "K70Turbo_实时性能控制_V4.0.zip"
+          sha256sum "K70Turbo_实时性能控制_V4.0.zip" | tee SHA256SUMS.txt
       - name: 上传模块 ZIP 构建产物
         uses: actions/upload-artifact@v4
         with:
           name: K70Turbo-Performance-V4
           path: |
-            K70Turbo_WebUI_中文控制台_V3.0.zip
+            K70Turbo_实时性能控制_V4.0.zip
             SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 90
