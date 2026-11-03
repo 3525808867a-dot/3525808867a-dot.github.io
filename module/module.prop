@@ -1,0 +1,6 @@
+id=k70turbo_monitor
+name=K70 至尊版性能监控（中文网页控制台）
+version=3.0.0
+versionCode=300
+author=ChatGPT
+description=面向 Redmi K70 至尊版的只读性能监控网页界面
