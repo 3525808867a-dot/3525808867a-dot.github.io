@@ -8,6 +8,23 @@ mkdir -p /data/adb
 say(){ echo "$*"; }
 mode="${1:-}"
 case "$mode" in
+  diagnose)
+    say "=== 只读诊断（不会修改任何节点）==="
+    say "身份：$(id 2>&1)"
+    if command -v getenforce >/dev/null 2>&1; then say "SELinux：$(getenforce 2>&1)"; else say "SELinux：getenforce 不可用"; fi
+    found=0
+    for node in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
+      [ -e "$node" ] || continue
+      found=$((found+1))
+      dir=${node%/scaling_governor}
+      say "--- $dir ---"
+      say "权限：$(ls -l "$node" 2>&1)"
+      say "当前 governor：$(cat "$node" 2>&1)"
+      say "可用 governor：$(cat "$dir/scaling_available_governors" 2>&1)"
+    done
+    [ "$found" -gt 0 ] || say "未发现 CPUFreq scaling_governor 节点"
+    exit 0
+    ;;
   powersave|balanced|performance|restore) ;;
   *) say "用法：apply-mode.sh powersave|balanced|performance|restore"; exit 2 ;;
 esac
@@ -30,7 +47,7 @@ set -- /sys/devices/system/cpu/cpufreq/policy*/scaling_governor
 [ -e "$1" ] || { say "未发现 CPUFreq governor 节点；本机内核接口不支持此项调节"; exit 1; }
 
 [ -f "$STATE" ] || : > "$STATE"
-ok=0; fail=0; skipped=0
+ok=0; fail=0; skipped=0; details=""
 for node in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
   [ -e "$node" ] || continue
   [ -w "$node" ] || { skipped=$((skipped+1)); continue; }
@@ -57,11 +74,19 @@ for node in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
       done ;;
   esac
   [ -n "$target" ] || { skipped=$((skipped+1)); continue; }
-  if echo "$target" > "$node" 2>/dev/null && [ "$(cat "$node" 2>/dev/null)" = "$target" ]; then
+  errfile="/data/adb/k70turbo_write_error"
+  if echo "$target" > "$node" 2>"$errfile" && [ "$(cat "$node" 2>/dev/null)" = "$target" ]; then
     ok=$((ok+1))
   else
     fail=$((fail+1))
+    err="$(cat "$errfile" 2>/dev/null)"
+    after="$(cat "$node" 2>&1)"
+    details="$details
+失败节点：$node
+目标：$target；写入后读取：$after
+写入错误：${err:-无 stderr（可能写入未生效或回读不一致）}"
   fi
 done
 say "模式：$mode；成功策略：$ok；跳过：$skipped；失败：$fail"
+[ -n "$details" ] && say "$details"
 [ "$ok" -gt 0 ] && [ "$fail" -eq 0 ]
