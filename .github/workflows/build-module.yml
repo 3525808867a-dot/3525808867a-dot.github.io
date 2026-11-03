@@ -18,9 +18,9 @@ jobs:
           cp module/apply-mode.sh package/apply-mode.sh
           chmod 0755 package/apply-mode.sh
           cd package
-          zip -r "../K70Turbo_WebUI_中文控制台_V4.0.zip" module.prop webroot
+          zip -r "../K70Turbo_实时性能控制_V4.0.zip" module.prop webroot apply-mode.sh
           cd ..
-          unzip -t "K70Turbo_WebUI_中文控制台_V3.0.zip"
+          unzip -t "K70Turbo_实时性能控制_V4.0.zip"
           unzip -l "K70Turbo_WebUI_中文控制台_V3.0.zip"
           sha256sum "K70Turbo_WebUI_中文控制台_V3.0.zip" | tee SHA256SUMS.txt
       - name: 上传模块 ZIP 构建产物
