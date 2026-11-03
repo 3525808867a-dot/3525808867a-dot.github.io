@@ -1,6 +1,6 @@
 id=k70turbo_monitor
 name=K70 至尊版实时性能控制（中文网页控制台）
-version=4.0.1
-versionCode=401
-author=ChatGPT
+version=1.0.0 beta
+versionCode=100
+author=酷安ddddd。
 description=通过现有 CPUFreq governor 节点实时切换 CPU 调速策略；不修改任何分区
