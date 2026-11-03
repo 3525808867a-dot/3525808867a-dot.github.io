@@ -1,0 +1,32 @@
+name: 构建 KernelSU 中文网页控制台
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 组装 KernelSU 模块 ZIP
+        run: |
+          mkdir -p package
+          cp module/module.prop package/module.prop
+          cp -R module/webroot package/webroot
+          cd package
+          zip -r "../K70Turbo_WebUI_中文控制台_V3.0.zip" module.prop webroot
+          cd ..
+          unzip -t "K70Turbo_WebUI_中文控制台_V3.0.zip"
+          unzip -l "K70Turbo_WebUI_中文控制台_V3.0.zip"
+          sha256sum "K70Turbo_WebUI_中文控制台_V3.0.zip" | tee SHA256SUMS.txt
+      - name: 上传模块 ZIP 构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: K70Turbo-WebUI-V3
+          path: |
+            K70Turbo_WebUI_中文控制台_V3.0.zip
+            SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 90
