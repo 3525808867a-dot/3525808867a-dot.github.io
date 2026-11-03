@@ -38,13 +38,13 @@ a.btn{display:inline-block;margin-top:18px;padding:13px 21px;border-radius:12px;
 <span class="tag"><span class="dot"></span><span id="status">正在检查版本…</span></span>
 <span class="version" id="version">版本读取中</span>
 </div>
-<h2 id="name">K70 至尊版性能监控 · 网页控制台</h2>
+<h2 id="name">K70 至尊版实时性能控制 · 1.0.0 beta</h2>
 <div class="meta" id="date">正在读取更新日期…</div>
 <ul id="notes"><li>正在读取更新说明…</li></ul>
-<a class="btn" id="download" href="https://github.com/3525808867a-dot/k70-turbo/actions/runs/41622022162/artifacts/13224605232">下载 V3.0 中文控制台</a>
-<div id="check">网页下载入口 · 中文版 V3.0</div>
+<a class="btn" id="download" href="https://github.com/3525808867a-dot/k70-turbo/actions/runs/41622022162/artifacts/13224605232">下载 1.0.0 beta · KernelSU 模块</a>
+<div id="check">作者：酷安ddddd。 · 1.0.0 beta</div>
 </section>
-<p class="foot">提示：下载后请先解压构建包，再将其中的 K70Turbo_WebUI_中文控制台_V3.0.zip 导入 KernelSU 安装。</p>
+<p class="foot">提示：下载的是可直接导入 KernelSU 管理器的模块 ZIP，无需手动解压；安装或更新模块后按管理器提示操作。</p>
 </main>
 <script>
 async function refresh(){
@@ -65,7 +65,7 @@ const li=document.createElement('li');
 li.textContent=t;
 ul.appendChild(li);
 });
-document.getElementById('download').href=d.file||'K70Turbo_Performance_V2_Console.zip';
+document.getElementById('download').href=d.file||'K70Turbo_Performance_V4.0.1.zip';
 check.textContent='最近检查：'+new Date().toLocaleTimeString()+' · 每 60 秒自动检查';
 }catch(e){
 status.textContent='暂时无法读取版本';
