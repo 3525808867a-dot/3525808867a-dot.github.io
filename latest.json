@@ -1,15 +1,16 @@
 {
-  "name": "K70 至尊版实时性能控制 · 中文网页控制台",
+  "name": "K70 至尊版实时性能控制",
   "version": "1.0.0 beta",
-  "status": "已构建，可直接导入 KernelSU",
+  "status": "已发布，可直接导入 KernelSU",
   "updated_at": "2026-11-03",
   "file": "https://github.com/3525808867a-dot/k70-turbo/releases/download/v4.0.1/K70Turbo_Performance_V4.0.1.zip",
   "size": 7945,
   "notes": [
-    "1.0.0 beta：新增底部悬浮主页/日志导航。",
-    "日志页记录性能模式切换和恢复操作的执行结果。",
+    "版本：1.0.0 beta；作者：酷安ddddd。",
+    "新增底部悬浮主页/日志导航，日志记录模式切换和恢复操作结果。",
     "修正通过 shell 调用 CPU governor 控制脚本的兼容性。",
     "仅操作现有 CPUFreq governor 节点；不修改任何分区、电压、GPU 或原厂温控保护。",
     "模式切换无需重启；实际效果取决于设备内核支持情况，尚未在实体手机上实测。"
-  ]
+  ],
+  "author": "酷安ddddd。"
 }
