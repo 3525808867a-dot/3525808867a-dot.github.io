@@ -1,10 +1,10 @@
-name: 构建 KernelSU 中文网页控制台
+name: 构建并发布 KernelSU 中文网页控制台
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,17 +18,27 @@ jobs:
           cp module/apply-mode.sh package/apply-mode.sh
           chmod 0755 package/apply-mode.sh
           cd package
-          zip -r "../K70Turbo_实时性能控制_V4.0.zip" module.prop webroot apply-mode.sh
+          zip -r "../K70Turbo_Performance_V4.0.zip" module.prop webroot apply-mode.sh
           cd ..
-          unzip -t "K70Turbo_实时性能控制_V4.0.zip"
-          unzip -l "K70Turbo_实时性能控制_V4.0.zip"
-          sha256sum "K70Turbo_实时性能控制_V4.0.zip" | tee SHA256SUMS.txt
-      - name: 上传模块 ZIP 构建产物
+          unzip -t "K70Turbo_Performance_V4.0.zip"
+          unzip -l "K70Turbo_Performance_V4.0.zip"
+          sha256sum "K70Turbo_Performance_V4.0.zip" | tee SHA256SUMS.txt
+      - name: 上传构建产物备份
         uses: actions/upload-artifact@v4
         with:
           name: K70Turbo-Performance-V4
           path: |
-            K70Turbo_实时性能控制_V4.0.zip
+            K70Turbo_Performance_V4.0.zip
             SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 90
+      - name: 发布可直接导入 KernelSU 的 ZIP
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v4.0.0
+          name: K70 Turbo Performance V4.0
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: |
+            K70Turbo_Performance_V4.0.zip
+            SHA256SUMS.txt
