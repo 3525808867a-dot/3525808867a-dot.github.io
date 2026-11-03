@@ -44,10 +44,10 @@ document.querySelectorAll('.mode-btn').forEach(btn=>btn.addEventListener('click'
   document.querySelectorAll('.mode-btn').forEach(b=>b.disabled=true);
   $('mode-status').textContent='正在应用'+btn.dataset.mode+'…';
   const key=modeMap[btn.dataset.mode];
-  const result=await command('/data/adb/modules/k70turbo_monitor/apply-mode.sh '+key);
+  const result=await command('sh /data/adb/modules/k70turbo_monitor/apply-mode.sh '+key);
   document.querySelectorAll('.mode-btn').forEach(b=>{b.disabled=false;b.setAttribute('aria-pressed',String(b===btn&&result.ok))});
   $('mode-status').textContent=result.ok?'已应用 '+btn.dataset.mode+'：'+result.out:'应用失败：'+(result.out||result.err||'接口不可用');
 }));
-$('refresh').addEventListener('click',refresh);$('restore').addEventListener('click',async()=>{const r=await command('/data/adb/modules/k70turbo_monitor/apply-mode.sh restore');$('mode-status').textContent=r.ok?r.out:'恢复失败：'+(r.out||r.err||'接口不可用')});$('toggle').addEventListener('click',()=>{paused=!paused;$('toggle').textContent=paused?'恢复自动刷新':'暂停自动刷新';$('state').textContent=paused?'已暂停':'监控运行中'});init().then(refresh);timer=setInterval(()=>{if(!paused)refresh()},2000);
+$('refresh').addEventListener('click',refresh);$('restore').addEventListener('click',async()=>{const r=await command('sh /data/adb/modules/k70turbo_monitor/apply-mode.sh restore');$('mode-status').textContent=r.ok?r.out:'恢复失败：'+(r.out||r.err||'接口不可用')});$('toggle').addEventListener('click',()=>{paused=!paused;$('toggle').textContent=paused?'恢复自动刷新':'暂停自动刷新';$('state').textContent=paused?'已暂停':'监控运行中'});init().then(refresh);timer=setInterval(()=>{if(!paused)refresh()},2000);
 })();
 </script></body></html>
