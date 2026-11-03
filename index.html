@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080d18">
+<title>K70 Turbo · 模块中心</title>
+<style>
+:root{color-scheme:dark;--bg:#080d18;--panel:#101a2b;--line:#20324b;--cyan:#55d9ff;--green:#58e0a2;--muted:#9aacc4}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 50% -15%,#163653 0,transparent 55%),var(--bg);color:#eef6ff;font:16px/1.6 system-ui,sans-serif;min-height:100vh}
+main{width:min(900px,92%);margin:0 auto;padding:56px 0}
+.top{display:flex;align-items:center;gap:10px;color:var(--cyan);letter-spacing:.16em;font-size:12px;font-weight:700}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+h1{font-size:clamp(34px,7vw,58px);line-height:1.05;margin:22px 0 12px}
+.sub{color:var(--muted);max-width:620px}
+.panel{margin-top:34px;padding:26px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(145deg,#122139dd,#0d1524ee)}
+.row{display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap}
+.tag{display:inline-flex;align-items:center;gap:8px;border:1px solid #245d50;color:var(--green);padding:5px 11px;border-radius:99px;font-size:13px}
+h2{font-size:22px;margin:15px 0 4px}
+.version{color:var(--cyan);font-weight:700;font-size:14px}
+.meta{color:var(--muted);font-size:13px}
+ul{padding-left:20px;color:#c7d5e8}
+li{margin:7px 0}
+a.btn{display:inline-block;margin-top:18px;padding:13px 21px;border-radius:12px;background:var(--cyan);color:#04111c;text-decoration:none;font-weight:800}
+.foot{margin-top:22px;color:#71839d;font-size:12px}
+#check{color:var(--muted);font-size:12px;margin-top:14px}
+@media(max-width:560px){main{padding:36px 0}.panel{padding:20px}}
+</style>
+</head>
+<body>
+<main>
+<div class="top"><span class="dot"></span>K70 TURBO / MODULE CENTER</div>
+<h1>模块下载中心</h1>
+<p class="sub">为 Redmi K70 至尊版准备的 KernelSU 模块。版本信息会从服务器清单读取。</p>
+<section class="panel">
+<div class="row">
+<span class="tag"><span class="dot"></span><span id="status">正在检查版本…</span></span>
+<span class="version" id="version">版本读取中</span>
+</div>
+<h2 id="name">K70 Turbo Performance V2 Console</h2>
+<div class="meta" id="date">正在读取更新日期…</div>
+<ul id="notes"><li>正在读取更新说明…</li></ul>
+<a class="btn" id="download" href="K70Turbo_Performance_V2_Console.zip">下载 KernelSU 模块 ZIP</a>
+<div id="check">页面会定时检查更新。</div>
+</section>
+<p class="foot">提示：发布新版本时，需要上传新 ZIP，并同步更新版本清单。</p>
+</main>
+<script>
+async function refresh(){
+const status=document.getElementById('status');
+const check=document.getElementById('check');
+try{
+const r=await fetch('latest.json?t='+Date.now(),{cache:'no-store'});
+if(!r.ok)throw new Error('HTTP '+r.status);
+const d=await r.json();
+document.getElementById('name').textContent=d.name||'K70 Turbo 模块';
+document.getElementById('version').textContent='VERSION '+(d.version||'未知');
+document.getElementById('date').textContent='最后更新：'+(d.updated_at||'未提供');
+status.textContent=d.status||'可下载';
+const ul=document.getElementById('notes');
+ul.replaceChildren();
+(d.notes||[]).forEach(t=>{
+const li=document.createElement('li');
+li.textContent=t;
+ul.appendChild(li);
+});
+document.getElementById('download').href=d.file||'K70Turbo_Performance_V2_Console.zip';
+check.textContent='最近检查：'+new Date().toLocaleTimeString()+' · 每 60 秒自动检查';
+}catch(e){
+status.textContent='暂时无法读取版本';
+check.textContent='读取失败：请确认 latest.json 已上传。';
+}
+}
+refresh();
+setInterval(refresh,60000);
+</script>
+</body>
+</html>
