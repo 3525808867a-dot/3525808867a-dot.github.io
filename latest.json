@@ -1,12 +1,14 @@
 {
-  "name": "K70 Turbo 性能监控台 V2（中文版）",
-  "version": "2.2",
-  "status": "已发布",
+  "name": "K70 至尊版性能监控 · 中文网页控制台",
+  "version": "3.0.0",
+  "status": "已构建，可下载",
   "updated_at": "2026-11-03",
-  "file": "K70Turbo_Performance_V2_Console.zip",
-  "size": 4098,
+  "file": "https://github.com/3525808867a-dot/k70-turbo/actions/runs/41622022162/artifacts/13224605232",
+  "size": 5023,
   "notes": [
-    "全中文模块名称、说明文档与监控控制台界面。",
-    "只读检测设备信息，不修改 CPU/GPU 频率、温控、电压或调度参数。"
+    "真正的网页式仪表盘：CPU、内存、电池、温度和 CPU 负载趋势图。",
+    "全中文界面，支持自动刷新、手动刷新和暂停刷新。",
+    "只读监控，不修改 CPU/GPU 频率、电压、温控或调度参数。",
+    "下载构建包后请解压，并将其中的 K70Turbo_WebUI_中文控制台_V3.0.zip 安装到 KernelSU。"
   ]
 }
