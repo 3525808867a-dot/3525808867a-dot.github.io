@@ -15,8 +15,10 @@ jobs:
           mkdir -p package
           cp module/module.prop package/module.prop
           cp -R module/webroot package/webroot
+          cp module/apply-mode.sh package/apply-mode.sh
+          chmod 0755 package/apply-mode.sh
           cd package
-          zip -r "../K70Turbo_WebUI_中文控制台_V3.0.zip" module.prop webroot
+          zip -r "../K70Turbo_WebUI_中文控制台_V4.0.zip" module.prop webroot
           cd ..
           unzip -t "K70Turbo_WebUI_中文控制台_V3.0.zip"
           unzip -l "K70Turbo_WebUI_中文控制台_V3.0.zip"
@@ -24,7 +26,7 @@ jobs:
       - name: 上传模块 ZIP 构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: K70Turbo-WebUI-V3
+          name: K70Turbo-Performance-V4
           path: |
             K70Turbo_WebUI_中文控制台_V3.0.zip
             SHA256SUMS.txt
