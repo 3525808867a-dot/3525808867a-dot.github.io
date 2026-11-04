@@ -57,7 +57,6 @@ private fun KillSuojiApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("killsuoji_v2", Context.MODE_PRIVATE) }
     var tab by remember { mutableIntStateOf(0) }
-    var dark by remember { mutableStateOf(prefs.getBoolean("dark_theme", false)) }
     var rootDetected by remember { mutableStateOf(false) }
     var isWorking by remember { mutableStateOf(prefs.getBoolean("is_working", false)) }
 
@@ -66,15 +65,9 @@ private fun KillSuojiApp() {
         if (!rootDetected) tab = 0
     }
 
-    val topTitle = when {
-        !rootDetected -> "KillSuoji  无法启动"
-        isWorking -> "KillSuoji  工作中"
-        else -> "KillSuoji  未启动"
-    }
-
     MiuixTheme {
         Scaffold(
-            topBar = { TopAppBar(title = topTitle) },
+            topBar = { TopAppBar(title = "KillSuoji") },
             bottomBar = {
                 Row(
                     Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 28.dp),
@@ -94,10 +87,7 @@ private fun KillSuojiApp() {
                     isWorking = !isWorking
                     prefs.edit().putBoolean("is_working", isWorking).apply()
                 } else HomeScreen(Modifier.padding(padding), false, false)
-                else -> SettingsScreen(Modifier.padding(padding), dark) {
-                    dark = it
-                    prefs.edit().putBoolean("dark_theme", it).apply()
-                }
+                else -> SettingsScreen(Modifier.padding(padding))
             }
         }
     }
@@ -136,28 +126,18 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                     Text(
                         when {
                             !rootDetected -> "无法启动！请获取 Root 的权限！"
-                            isWorking -> "已经检测到 Root · 工作中"
+                            isWorking -> "已经检测到了 Root"
                             else -> "已经检测到了 Root"
                         },
                         color = if (!rootDetected) Color(0xFF777777) else Color(0xFFB42318),
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
-                    Text(
-                        when {
-                            !rootDetected -> "KillSuoji  无法启动"
-                            isWorking -> "KillSuoji  工作中"
-                            else -> "KillSuoji  未启动"
-                        },
-                        fontSize = 25.sp, fontWeight = FontWeight.Bold
-                    )
-                    Text("V2.1.0 Beta", fontSize = 16.sp, color = Color(0xFF777777))
-                    Text("KernelSU · Miuix UI", fontSize = 14.sp)
+                    Text("KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                    Text("V2.3.0 Beta", fontSize = 16.sp, color = Color(0xFF777777))
                 }
             }
         }
-        item { InfoCard("应用状态", when { !rootDetected -> "未检测到 Root"; isWorking -> "工作中"; else -> "已检测到 Root，未启动" }) }
-        item { InfoCard("版本", "V2.1.0 Beta") }
-        item { InfoCard("界面风格", "KernelSU Miuix") }
+        item { InfoCard("版本", "V2.3.0 Beta") }
     }
 }
 
@@ -176,34 +156,6 @@ private fun LaunchScreen(modifier: Modifier = Modifier, isWorking: Boolean, onTo
                 Text(if (isWorking) "停止" else "执行", fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold, color = KsuAccent)
             }
-        }
-    }
-}
-
-@Composable
-private fun SettingsScreen(modifier: Modifier, dark: Boolean, onDarkChange: (Boolean) -> Unit) {
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Text("外观", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().clickable { onDarkChange(!dark) }.padding(18.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("深色模式")
-                        Text("切换 Miuix 深色外观", fontSize = 12.sp, color = Color(0xFF777777))
-                    }
-                    Text(if (dark) "已开启" else "已关闭", color = KsuAccent)
-                }
-            }
-        }
-        item {
-            Text("关于", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            InfoCard("应用名称", "KillSuoji")
-            Spacer(Modifier.height(8.dp))
-            InfoCard("版本", "V2.1.0 Beta")
-            Spacer(Modifier.height(8.dp))
-            InfoCard("UI 框架", "Miuix · KernelSU")
         }
     }
 }
