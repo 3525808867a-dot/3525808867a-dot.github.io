@@ -47,7 +47,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
    updateSummary.textContent=message;
    download.classList.toggle('available',available);
    download.setAttribute('aria-disabled',String(!available));
-   if(available&&downloadUrl){download.href=downloadUrl;download.setAttribute('download','KillSuoji-'+currentVersion.replaceAll(' ','-')+'.apk');download.textContent='下载';}
+   if(available&&downloadUrl){download.href=downloadUrl;download.setAttribute('download',currentVersion.split(' ')[0]+'.apk');download.textContent='下载';}
    else{download.removeAttribute('href');download.removeAttribute('download');download.textContent='下载';}
  }
  async function checkRepositoryVersion(){
@@ -65,7 +65,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
      let assetUrl=null;
      if(releaseRes.ok){
        const release=await releaseRes.json();
-       const asset=(release.assets||[]).find(x=>x.name==='app-debug.apk');
+       const asset=(release.assets||[]).find(x=>x.name===repoVersion.split(' ')[0]+'.apk');
        if(asset)assetUrl=asset.browser_download_url;
      }
      if(repoVersion===currentVersion&&assetUrl){
@@ -79,7 +79,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
      renderUpdate('undetectable','无法读取仓库最新版本：'+err.message);
    }
  }
- document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('available','开发者手动切换为可下载显示；自动检测结果会在下次检查时更新。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.2.0/app-debug.apk');});
+ document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('available','开发者手动切换为可下载显示；自动检测结果会在下次检查时更新。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+currentVersion.split(' ')[0]+'/'+currentVersion.split(' ')[0]+'.apk');});
  document.getElementById('force-unavailable').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('undetectable','开发者手动切换为无法检测显示；自动检测结果会在下次检查时更新。');});
  checkRepositoryVersion();
  setInterval(checkRepositoryVersion,30000);
