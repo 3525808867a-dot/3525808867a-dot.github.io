@@ -25,7 +25,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
 <p class="muted">包含主页、Root 权限状态检测、启动页和安全提示流程。</p>
 <div class="info"><div class="tile"><b>薄荷绿</b><span>统一界面主题</span></div><div class="tile"><b>Android</b><span>APK 安装包</span></div></div>
 <a class="btn" href="./KillSuoji.apk">下载 KillSuoji APK</a>
-<a class="btn secondary" href="https://github.com/3525808867a-dot/k70-turbo">项目源码</a>
+<a class="btn secondary" href="https://github.com/3525808867a-dot/3525808867a-dot.github.io">项目源码</a>
 <p class="muted" id="status" style="font-size:13px;margin:14px 0 0">当前版本：V1.0.0 beta。正在读取最新发布信息…</p>
 </section>
 <section class="card"><strong>版本说明</strong><ul><li>主页：工作状态卡片、设备信息和双导航栏。</li><li>启动：Root 权限检测、执行入口和状态提示。</li><li>音量上键：连续按五次显示提示。</li><li>不会强制结束其他应用或系统进程，避免影响设备稳定性。</li></ul></section>
@@ -38,7 +38,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
   const summary = document.getElementById("update-summary");
   const status = document.getElementById("status");
   try {
-    const response = await fetch("https://api.github.com/repos/3525808867a-dot/k70-turbo/releases/latest", {cache:"no-store"});
+    const response = await fetch("https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases/latest", {cache:"no-store"});
     if (!response.ok) throw new Error("release lookup failed");
     const release = await response.json();
     const latestTag = String(release.tag_name || "").trim();
