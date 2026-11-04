@@ -34,11 +34,12 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
 <script>
 (()=>{
  const trigger=document.getElementById('dev-trigger'),panel=document.getElementById('dev-panel'),controls=document.getElementById('dev-toggle-row');
- const updateCard=document.getElementById('update-card'),updateSummary=document.getElementById('update-summary'),updateIcon=document.getElementById('update-icon'),download=document.querySelector('.download-btn');
- function setAvailability(available,save=true){if(save){try{localStorage.setItem('killsuoji-download-available',available?'1':'0');}catch(e){}}updateCard.classList.toggle('error',!available);updateIcon.textContent=available?'✓':'×';updateSummary.textContent=available?'V2.0.0 Beta（Miuix 版）已恢复可下载状态':'V2.0.0 Beta（Miuix 版）暂时不可下载';download.classList.toggle('available',available);download.setAttribute('aria-disabled',String(!available));if(available){download.href='https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.0.0/app-debug.apk';download.setAttribute('download','KillSuoji-V2.0.0-Beta.apk');download.textContent='下载';}else{download.removeAttribute('href');download.textContent='下载';}}
- document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();setAvailability(true);});
- document.getElementById('force-unavailable').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();setAvailability(false);});
- let savedAvailability=false;try{savedAvailability=localStorage.getItem('killsuoji-download-available')==='1';}catch(e){}setAvailability(savedAvailability,false);
+ const updateTitle=updateCard.querySelector('h2');
+ const downloadStateKey='killsuoji-download-state';
+ function setAvailability(mode,save=true){const available=mode==='available';if(save){try{localStorage.setItem(downloadStateKey,mode);}catch(e){}}updateCard.classList.toggle('error',!available);updateIcon.textContent=available?'✓':'×';updateTitle.textContent=mode==='undetectable'?'无法检测最新版本':'检查更新';updateSummary.textContent=mode==='available'?'V2.0.0 Beta（Miuix 版）已恢复可下载状态':mode==='undetectable'?'最新版本检测失败，当前无法检测是否有更新':'V2.0.0 Beta（Miuix 版）暂时不可下载';download.classList.toggle('available',available);download.setAttribute('aria-disabled',String(!available));if(available){download.href='https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.0.0/app-debug.apk';download.setAttribute('download','KillSuoji-V2.0.0-Beta.apk');download.textContent='下载';}else{download.removeAttribute('href');download.removeAttribute('download');download.textContent='下载';}}
+ document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();setAvailability('available');});
+ document.getElementById('force-unavailable').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();setAvailability('undetectable');});
+ let savedState='unavailable';try{const stored=localStorage.getItem(downloadStateKey);if(stored==='available'||stored==='unavailable'||stored==='undetectable')savedState=stored;else if(localStorage.getItem('killsuoji-download-available')==='1')savedState='available';}catch(e){}setAvailability(savedState,false);
  let taps=0,resetTap,timer=null,opened=false;
  const endpoint='https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/actions/runs?per_page=1';
  const state=document.getElementById('build-state'),detail=document.getElementById('build-detail'),bar=document.getElementById('build-bar'),stamp=document.getElementById('build-time');
