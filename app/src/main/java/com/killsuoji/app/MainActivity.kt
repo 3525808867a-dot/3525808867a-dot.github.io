@@ -148,7 +148,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
             }
         }
         item { UpdateCard() }
-        item { InfoCard("版本", "V2.3.0 Beta") }
+        item { InfoCard("版本", "V2.3.2 Beta") }
     }
 }
 
@@ -289,7 +289,7 @@ private fun SettingsScreen(modifier: Modifier) {
         item {
             Text("关于", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             InfoCard("应用名称", "KillSuoji")
-            InfoCard("版本", "V2.3.0 Beta")
+            InfoCard("版本", "V2.3.2 Beta")
         }
     }
 }
