@@ -19,11 +19,16 @@ import android.widget.Toast
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
-    private val mint = Color.rgb(222, 249, 231)
-    private val green = Color.rgb(29, 194, 100)
-    private val deepGreen = Color.rgb(7, 132, 65)
-    private val ink = Color.rgb(22, 27, 24)
-    private val muted = Color.rgb(105, 115, 108)
+    // KernelSU-style design tokens, adapted for KillSuoji's native Android UI.
+    private val pageBg = Color.rgb(246, 247, 249)
+    private val surface = Color.rgb(255, 255, 255)
+    private val surfaceVariant = Color.rgb(239, 242, 246)
+    private val mint = Color.rgb(225, 246, 235)
+    private val green = Color.rgb(55, 145, 105)
+    private val deepGreen = Color.rgb(34, 112, 79)
+    private val ink = Color.rgb(28, 31, 35)
+    private val muted = Color.rgb(104, 112, 122)
+    private val outline = Color.rgb(224, 228, 233)
     private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
     private var rootAvailable = false
@@ -34,8 +39,8 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(247, 250, 248)
-        window.navigationBarColor = Color.rgb(247, 250, 248)
+        window.statusBarColor = pageBg
+        window.navigationBarColor = pageBg
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         showShell()
         detectRoot()
@@ -59,7 +64,7 @@ class MainActivity : Activity() {
     private fun showShell() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(247, 250, 248))
+            setBackgroundColor(pageBg)
             setPadding(dp(20), dp(12), dp(20), dp(12))
         }
         val header = LinearLayout(this).apply {
@@ -92,7 +97,7 @@ class MainActivity : Activity() {
         val nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            background = shape(Color.WHITE, Color.TRANSPARENT, 0, 32)
+            background = shape(surface, outline, 1, 28)
             setPadding(dp(8), dp(8), dp(8), dp(8))
         }
         val home = navButton("⌂\n主页") { currentPage = "home"; showHome() }
@@ -129,7 +134,7 @@ class MainActivity : Activity() {
             row.addView(label(pair.first, 15, ink, false), LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(label(pair.second, 14, muted, false))
             info.addView(row)
-            if (index != 3) info.addView(View(this).apply { setBackgroundColor(Color.rgb(235, 240, 237)) }, LinearLayout.LayoutParams(-1, dp(1)))
+            if (index != 3) info.addView(View(this).apply { setBackgroundColor(outline) }, LinearLayout.LayoutParams(-1, dp(1)))
         }
         content.addView(info)
     }
@@ -195,7 +200,7 @@ class MainActivity : Activity() {
     private fun tagRow(): View = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         addView(label("LKM", 12, Color.WHITE, true).apply { background = shape(green, Color.TRANSPARENT, 0, 20); setPadding(dp(10), dp(4), dp(10), dp(4)) })
-        addView(label("自定义", 12, deepGreen, true).apply { background = shape(Color.rgb(196, 240, 210), Color.TRANSPARENT, 0, 20); setPadding(dp(10), dp(4), dp(10), dp(4)); setMarginsStart(dp(8)) })
+        addView(label("自定义", 12, deepGreen, true).apply { background = shape(Color.rgb(215, 239, 226), Color.TRANSPARENT, 0, 20); setPadding(dp(10), dp(4), dp(10), dp(4)); setMarginsStart(dp(8)) })
         addView(label("安全模式", 12, Color.rgb(125, 75, 75), true).apply { background = shape(Color.rgb(255, 239, 239), Color.TRANSPARENT, 0, 20); setPadding(dp(10), dp(4), dp(10), dp(4)); setMarginsStart(dp(8)) })
     }
 
@@ -205,8 +210,8 @@ class MainActivity : Activity() {
     }
     private fun card(color: Int) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        background = shape(color, Color.TRANSPARENT, 0, 26)
-        setPadding(dp(22), dp(22), dp(22), dp(22))
+        background = shape(color, outline, 1, 22)
+        setPadding(dp(20), dp(20), dp(20), dp(20))
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) }
     }
     private fun label(text: String, size: Int, color: Int, bold: Boolean) = TextView(this).apply {
@@ -216,7 +221,7 @@ class MainActivity : Activity() {
     private fun navButton(text: String, action: () -> Unit) = TextView(this).apply {
         this.text = text; textSize = 16f; gravity = Gravity.CENTER
         setTextColor(deepGreen); setOnClickListener { action() }
-        background = shape(mint, Color.TRANSPARENT, 0, 28)
+        background = shape(mint, Color.TRANSPARENT, 0, 22)
     }
     private fun shape(color: Int, stroke: Int, strokeWidth: Int, radius: Int) = GradientDrawable().apply {
         setColor(color); cornerRadius = dp(radius).toFloat()
