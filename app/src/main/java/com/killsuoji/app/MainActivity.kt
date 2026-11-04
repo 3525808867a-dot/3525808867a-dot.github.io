@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun KillSuojiApp() {
     var selectedTab by remember { mutableIntStateOf(0) }
