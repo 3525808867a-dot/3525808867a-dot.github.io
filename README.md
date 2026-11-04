@@ -3,7 +3,7 @@
 KillSuoji 是一款基于 Android 的工具应用，提供 Root 权限检测及应用内工作状态切换。
 
 ## 当前版本
-- 版本：**V2.3.3 Beta**
+- 版本：**V2.3.4 Beta**
 - 平台：Android（最低支持 Android 8.0 / API 26）
 - 下载页：https://3525808867a-dot.github.io/
 - APK：[2.3.3.apk](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.3.3/2.3.3.apk)
@@ -16,8 +16,8 @@ KillSuoji 是一款基于 Android 的工具应用，提供 Root 权限检测及�
 - **首页状态展示**：显示 Root 检测结果及当前应用版本。
 - **安全说明**：工作状态仅为应用内显示状态，不会执行系统修改或强制结束其他应用、系统进程。
 
-## 版本说明 · V2.3.3 Beta
-- 当前应用版本为 V2.3.3 Beta。
+## 版本说明 · V2.3.4 Beta
+- 当前应用版本为 V2.3.4 Beta。
 - 优化 Root 权限检测及启动入口显示。
 - 支持执行 / 停止状态切换，并在重新打开应用后保留状态。
 - 更新首页状态文字与状态颜色显示。
