@@ -18,10 +18,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.ThemeController
 
 private val KsuAccent = Color(0xFF4285F4)
 
@@ -39,12 +36,7 @@ private fun KillSuojiApp() {
     var tab by remember { mutableIntStateOf(0) }
     var dark by remember { mutableStateOf(prefs.getBoolean("dark_theme", false)) }
 
-    MiuixTheme(
-        controller = ThemeController(
-            if (dark) ColorSchemeMode.Dark else ColorSchemeMode.Light,
-            keyColor = KsuAccent
-        )
-    ) {
+    MiuixTheme {
         Scaffold(
             topBar = { TopAppBar(title = "KillSuoji") },
             bottomBar = {
@@ -74,7 +66,7 @@ private fun KillSuojiApp() {
 private fun NavItem(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Card(modifier = modifier.clickable(onClick = onClick)) {
         Box(Modifier.fillMaxWidth().padding(vertical = 13.dp), contentAlignment = Alignment.Center) {
-            Text(label, color = if (selected) KsuAccent else MiuixTheme.colorScheme.onSurfaceVariant,
+            Text(label, color = if (selected) KsuAccent else Color(0xFF777777),
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
         }
     }
@@ -92,7 +84,7 @@ private fun HomeScreen(modifier: Modifier = Modifier) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("KernelSU", color = KsuAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Text("KillSuoji", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.0.0 Beta", fontSize = 16.sp, color = MiuixTheme.colorScheme.onSurfaceVariant)
+                    Text("V2.0.0 Beta", fontSize = 16.sp, color = Color(0xFF777777))
                     Text("KernelSU · Miuix UI", fontSize = 14.sp)
                 }
             }
@@ -105,7 +97,7 @@ private fun HomeScreen(modifier: Modifier = Modifier) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("功能说明", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                     Text("仅保留 KSU Miuix 风格界面，不包含 Root 获取、Root 授权、超级用户管理、模块安装或系统修改功能。",
-                        fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurfaceVariant)
+                        fontSize = 14.sp, color = Color(0xFF777777))
                 }
             }
         }
@@ -119,7 +111,7 @@ private fun ModulesScreen(modifier: Modifier = Modifier) {
         Text("模块", fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(10.dp))
         Text("此纯界面版本不提供模块安装或管理功能。",
-            color = MiuixTheme.colorScheme.onSurfaceVariant)
+            color = Color(0xFF777777))
     }
 }
 
@@ -130,8 +122,14 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, onDarkChange: (Boo
         item {
             Text("外观", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Card(modifier = Modifier.fillMaxWidth()) {
-                SwitchPreference(title = "深色模式", summary = "切换 Miuix 深色外观",
-                    checked = dark, onCheckedChange = onDarkChange)
+                Row(Modifier.fillMaxWidth().clickable { onDarkChange(!dark) }.padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("深色模式")
+                        Text("切换 Miuix 深色外观", fontSize = 12.sp, color = Color(0xFF777777))
+                    }
+                    Text(if (dark) "已开启" else "已关闭", color = KsuAccent)
+                }
             }
         }
         item {
@@ -150,7 +148,7 @@ private fun InfoCard(title: String, value: String) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = MiuixTheme.colorScheme.onSurfaceVariant)
+            Text(title, color = Color(0xFF777777))
             Text(value, fontWeight = FontWeight.Medium)
         }
     }
