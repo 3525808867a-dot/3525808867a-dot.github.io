@@ -3,7 +3,7 @@
 KillSuoji 是一款 Android 工具应用，提供简洁的浅色薄荷绿界面与安全的 Root 状态检测流程。
 
 ## 当前版本
-- 版本：**V1.0.0 beta**
+- 版本：**V1.1.0 beta**
 - 平台：Android
 - 下载页：https://3525808867a-dot.github.io/
 - APK：[KillSuoji.apk](./KillSuoji.apk)
@@ -15,7 +15,7 @@ KillSuoji 是一款 Android 工具应用，提供简洁的浅色薄荷绿界面�
 - **安全设计**：仅管理应用自身状态，不强制结束其他应用或系统进程。
 
 ## 版本约定
-当前版本固定为 **V1.0.0 beta**。未经明确确认，不修改版本号。
+当前版本为 **V1.1.0 beta**。
 
 ## 项目说明
 本仓库用于 KillSuoji Android 应用源码、下载页及 APK 发布。与红米 K70 至尊版性能控制模块无关。
