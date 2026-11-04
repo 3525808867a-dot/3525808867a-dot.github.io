@@ -87,11 +87,12 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
    old.forEach(x=>{const row=document.createElement('div');row.className='history-item';const label=document.createElement('strong');label.textContent='V'+x.v+' Beta';const link=document.createElement('a');link.href=x.url;link.download=x.v+'.apk';link.textContent='下载';row.append(label,link);list.append(row);});
   }catch(e){
    const known=[
+    {v:'2.3.0',file:'2.3.0.apk'},
     {v:'2.1.0',file:'app-debug.apk'},
     {v:'2.0.0',file:'app-debug.apk'},
     {v:'1.1.0',file:'app-debug.apk'},
     {v:'1.0.0',file:'app-debug.apk'}
-   ].filter(x=>x.v!==currentVersion.split(' ')[0]);
+   ];
    list.replaceChildren();
    if(!known.length){status.textContent='暂时没有可下载的历史版本。';return;}
    status.textContent='GitHub 接口暂不可用，显示已发布的历史版本：';
