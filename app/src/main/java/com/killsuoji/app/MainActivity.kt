@@ -318,7 +318,7 @@ private fun SettingsScreen(modifier: Modifier) {
         item {
             Text("关于", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             InfoCard("应用名称", "KillSuoji")
-            InfoCard("版本", "V2.3.3 Beta")
+            InfoCard("版本", "V2.3.4 Beta")
         }
     }
 }
