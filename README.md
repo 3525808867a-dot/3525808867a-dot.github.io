@@ -26,5 +26,4 @@ KillSuoji 是一款基于 Android 的工具应用，提供 Root 权限检测及�
 ## 项目说明
 本仓库包含 KillSuoji Android 应用源码、专属下载页面及 APK 发布文件。
 
-
 （当前为beta测试版，如有bug请联系作者）
