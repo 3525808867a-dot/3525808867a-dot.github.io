@@ -161,14 +161,14 @@ private fun fetchLatestUpdate(installedVersionName: String): Pair<String, String
     connection.setRequestProperty("User-Agent", "KillSuoji-Android")
     return try {
         val releases = org.json.JSONArray(connection.getInputStream().bufferedReader().use { it.readText() })
-        val current = parseVersion(installedVersionName) ?: return null
-
         fun parseVersion(raw: String): List<Int>? {
             val normalized = raw.removePrefix("v").substringBefore("-").substringBefore(" ")
             val parts = normalized.split(".")
             if (parts.size != 3) return null
             return parts.map { it.toIntOrNull() ?: return null }
         }
+
+        val current = parseVersion(installedVersionName) ?: return null
 
         fun isNewer(candidate: List<Int>, baseline: List<Int>): Boolean {
             for (i in 0..2) {
