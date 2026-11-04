@@ -2,7 +2,7 @@
   "name": "KillSuoji Android 应用",
   "version": "V2.3.6 Beta",
   "version_code": 12,
-  "status": "temporarily_unavailable",
+  "status": "available",
   "updated_at": "2026-11-05",
   "download_page": "https://3525808867a-dot.github.io/",
   "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.3.6/2.3.6.apk",
@@ -12,5 +12,5 @@
     "连续按五次音量上键时显示提示。",
     "不强制结束其他应用或系统进程。"
   ],
-  "notice": "V2.3.6 Beta 安装包正在配置固定签名并构建，待验证通过后开放下载。"
+  "notice": "V2.3.6 Beta 安装包已发布，可以下载。"
 }
