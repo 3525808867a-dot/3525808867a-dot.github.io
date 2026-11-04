@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -142,7 +143,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.3.0 Beta", fontSize = 16.sp, color = Color(0xFF777777))
+                    Text("V2.3.1 Beta", fontSize = 16.sp, color = Color(0xFF777777))
                 }
             }
         }
@@ -162,7 +163,7 @@ private fun fetchLatestUpdate(): Pair<String, String>? {
         val json = JSONObject(connection.getInputStream().bufferedReader().use { it.readText() })
         val version = json.optString("tag_name").removePrefix("v")
         val latest = version.substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
-        val current = listOf(2, 3, 0)
+        val current = listOf(2, 3, 1)
         var newer = false
         for (i in 0..2) {
             val diff = (latest.getOrElse(i) { 0 }).compareTo(current[i])
@@ -176,6 +177,8 @@ private fun fetchLatestUpdate(): Pair<String, String>? {
             if (asset.optString("name") == version.substringBefore("-") + ".apk") apk = asset.optString("browser_download_url")
         }
         if (apk.isNullOrBlank()) null else Pair(version, apk!!)
+    } catch (_: Exception) {
+        null
     }
 }
 
