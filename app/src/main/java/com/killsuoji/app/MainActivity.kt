@@ -161,6 +161,18 @@ private fun LaunchScreen(modifier: Modifier = Modifier, isWorking: Boolean, onTo
 }
 
 @Composable
+private fun SettingsScreen(modifier: Modifier) {
+    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text("关于", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            InfoCard("应用名称", "KillSuoji")
+            InfoCard("版本", "V2.3.0 Beta")
+        }
+    }
+}
+
+@Composable
 private fun InfoCard(title: String, value: String) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
