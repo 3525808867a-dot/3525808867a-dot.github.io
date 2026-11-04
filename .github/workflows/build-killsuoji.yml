@@ -32,7 +32,7 @@ jobs:
       - name: Publish APK release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.1.0
-          name: KillSuoji 2.1.0 Beta
+          tag_name: v2.2.0
+          name: KillSuoji 2.2.0 Beta
           make_latest: true
           files: app/build/outputs/apk/debug/app-debug.apk
