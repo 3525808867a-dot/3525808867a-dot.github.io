@@ -65,7 +65,23 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
    if(!old.length){status.textContent='暂时没有可下载的历史版本。';return;}
    status.textContent='选择需要的旧版本：';
    old.forEach(x=>{const row=document.createElement('div');row.className='history-item';const label=document.createElement('strong');label.textContent='V'+x.v+' Beta';const link=document.createElement('a');link.href=x.url;link.download=x.v+'.apk';link.textContent='下载';row.append(label,link);list.append(row);});
-  }catch(e){status.textContent='历史版本暂时无法加载：'+e.message;}
+  }catch(e){
+   const known=[
+    {v:'2.1.0',file:'app-debug.apk'},
+    {v:'2.0.0',file:'app-debug.apk'},
+    {v:'1.1.0',file:'app-debug.apk'},
+    {v:'1.0.0',file:'app-debug.apk'}
+   ].filter(x=>x.v!==currentVersion.split(' ')[0]);
+   list.replaceChildren();
+   if(!known.length){status.textContent='暂时没有可下载的历史版本。';return;}
+   status.textContent='GitHub 接口暂不可用，显示已发布的历史版本：';
+   known.forEach(x=>{
+    const row=document.createElement('div');row.className='history-item';
+    const label=document.createElement('strong');label.textContent='V'+x.v+' Beta';
+    const link=document.createElement('a');link.href='https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+x.v+'/'+x.file;link.download=x.v+'.apk';link.textContent='下载';
+    row.append(label,link);list.append(row);
+   });
+  }
  }
  async function checkRepositoryVersion(){
    renderUpdate('checking','正在检查 GitHub 仓库中的最新版本…');
@@ -85,6 +101,8 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
        const asset=(release.assets||[]).find(x=>x.name===repoVersion.split(' ')[0]+'.apk');
        if(asset)assetUrl=asset.browser_download_url;
      }
+     // GitHub API may return 403 because of anonymous rate limits; use the verified release asset URL as fallback.
+     if(!assetUrl)assetUrl='https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/'+encodeURIComponent(tag)+'/'+encodeURIComponent(repoVersion.split(' ')[0]+'.apk');
      if(repoVersion===currentVersion&&assetUrl){
        renderUpdate('available','仓库最新版本：V'+repoVersion+'。已检测到对应安装包，可以下载。',assetUrl);
      }else if(repoVersion===currentVersion){
