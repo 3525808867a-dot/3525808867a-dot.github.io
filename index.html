@@ -19,50 +19,20 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
 <body><main>
 <header class="top"><div class="logo">Kill</div><div>KillSuoji<small>ANDROID TOOL · DOWNLOAD CENTER</small></div></header>
 <h1>KillSuoji 下载中心</h1><p class="sub">简洁、轻量的 Android 工具。浅色薄荷绿界面，主页与启动页采用统一设计。</p>
-<section class="hero"><span class="tag">KILLSUOJI · ANDROID</span><h2>检查更新</h2><p id="update-summary">新版安装包正在修复构建，暂时不可下载</p><div class="check">✓</div></section>
+<section class="hero"><span class="tag">KILLSUOJI · ANDROID</span><h2>检查更新</h2><p id="update-summary">V2.0.0 Beta（Miuix 版）正在修复构建，暂时不可下载</p><div class="check">✓</div></section>
 <section class="card">
-<div class="row"><strong>KillSuoji Android</strong><span class="version">VERSION V1.1.0 beta</span></div>
+<div class="row"><strong>KillSuoji Android</strong><span class="version">VERSION V2.0.0 Beta</span></div>
 <p class="muted">包含主页、Root 权限状态检测、启动页和安全提示流程。</p>
 <div class="info"><div class="tile"><b>薄荷绿</b><span>统一界面主题</span></div><div class="tile"><b>Android</b><span>APK 安装包</span></div></div>
 <span class="btn disabled" aria-disabled="true">暂时不可下载</span>
 <a class="btn secondary" href="https://github.com/3525808867a-dot/3525808867a-dot.github.io">项目源码</a>
-<p class="muted" id="status" style="font-size:13px;margin:14px 0 0">当前版本：V1.1.0 beta。新版安装包正在修复构建，暂时停止下载。</p>
+<p class="muted" id="status" style="font-size:13px;margin:14px 0 0">当前目标版本：V2.0.0 Beta。Miuix 界面版构建验证通过前，下载入口保持关闭。</p>
 </section>
 <section class="card"><strong>版本说明</strong><ul><li>主页：工作状态卡片、设备信息和双导航栏。</li><li>启动：Root 权限检测、执行入口和状态提示。</li><li>音量上键：连续按五次显示提示。</li><li>不会强制结束其他应用或系统进程，避免影响设备稳定性。</li></ul></section>
 <p class="foot">KillSuoji · 专属下载中心</p>
 </main>
 <script>
-(async function(){
-  const currentTag = "v1.1.0";
-  const currentVersion = "V1.1.0 beta";
-  const summary = document.getElementById("update-summary");
-  const status = document.getElementById("status");
-  try {
-    const response = await fetch("https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases/latest", {cache:"no-store"});
-    if (!response.ok) throw new Error("release lookup failed");
-    const release = await response.json();
-    const latestTag = String(release.tag_name || "").trim();
-    const latestName = String(release.name || latestTag).trim();
-    if (latestTag && latestTag.toLowerCase() !== currentTag) {
-      summary.textContent = "检测到新版本：" + latestName;
-      status.textContent = "当前版本：" + currentVersion + "；最新版本：" + latestName + "。请通过下方项目发布页获取更新。";
-      const asset = (release.assets || []).find(a => /KillSuoji.*\.apk$/i.test(a.name)) || (release.assets || []).find(a => /\.apk$/i.test(a.name));
-      if (asset) {
-        const link = document.createElement("a");
-        link.className = "btn";
-        link.href = asset.browser_download_url;
-        link.textContent = "下载新版本 " + latestName;
-        link.style.marginLeft = "8px";
-        document.querySelector(".card a.btn.secondary").insertAdjacentElement("afterend", link);
-      }
-    } else {
-      summary.textContent = "当前已是最新版本 · " + currentVersion;
-      status.textContent = "当前版本：" + currentVersion + "。暂未检测到更新。";
-    }
-  } catch (e) {
-    summary.textContent = "暂时无法连接更新服务器";
-    status.textContent = "当前版本：" + currentVersion + "。更新检测失败，请稍后重试；不影响下载安装当前版本。";
-  }
-})();
+document.getElementById("update-summary").textContent = "V2.0.0 Beta（Miuix 版）正在修复构建，暂不可下载";
+document.getElementById("status").textContent = "新版 APK 尚未通过构建验证，下载入口保持关闭；不会自动展示旧版或未验证安装包。";
 </script>
 </body></html>
