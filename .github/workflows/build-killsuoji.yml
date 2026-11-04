@@ -37,7 +37,7 @@ jobs:
           version = os.environ.get("VERSION_NAME", "")
           if not version:
               with open("app/build.gradle.kts", encoding="utf-8") as f:
-                  match = re.search(r'versionName\\s*=\\s*"([^"]+)"', f.read())
+                  match = re.search(r'versionName\s*=\s*"([^"]+)"', f.read())
               if not match:
                   raise SystemExit("Cannot read versionName")
               version = match.group(1)
@@ -45,10 +45,10 @@ jobs:
           note = "（当前为beta测试版，如有bug请联系作者）"
           with open("README.md", encoding="utf-8") as f:
               readme = f.read()
-          readme = re.sub(r'V\\d+\\.\\d+\\.\\d+(?:\\s+Beta)?', label, readme)
-          readme = readme.replace("\\n\\n" + note, "").replace(note, "")
+          readme = re.sub(r'V\d+\.\d+\.\d+(?:\s+Beta)?', label, readme)
+          readme = readme.replace("\n\n" + note, "").replace(note, "")
           if re.search(r'beta', version, re.I):
-              readme = readme.rstrip() + "\\n\\n" + note + "\\n"
+              readme = readme.rstrip() + "\n\n" + note + "\n"
           with open("README.md", "w", encoding="utf-8") as f:
               f.write(readme)
           PY
