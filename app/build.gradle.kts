@@ -28,6 +28,6 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.material3:material3")
-    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.6.1")
+    implementation("top.yukonga.miuix.kmp:miuix-android:0.3.8")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
