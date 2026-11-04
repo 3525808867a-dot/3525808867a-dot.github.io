@@ -143,40 +143,68 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.3.2 Beta", fontSize = 16.sp, color = Color(0xFF777777))
+                    Text("V2.3.3 Beta", fontSize = 16.sp, color = Color(0xFF777777))
                 }
             }
         }
         item { UpdateCard() }
-        item { InfoCard("版本", "V2.3.2 Beta") }
+        item { InfoCard("版本", "V2.3.3 Beta") }
     }
 }
 
 
 private fun fetchLatestUpdate(): Pair<String, String>? {
-    val connection = URL("https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases/latest").openConnection()
-    connection.connectTimeout = 8000
-    connection.readTimeout = 8000
+    val connection = URL("https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases?per_page=100")
+        .openConnection()
+    connection.connectTimeout = 10000
+    connection.readTimeout = 10000
     connection.setRequestProperty("Accept", "application/vnd.github+json")
     connection.setRequestProperty("User-Agent", "KillSuoji-Android")
     return try {
-        val json = JSONObject(connection.getInputStream().bufferedReader().use { it.readText() })
-        val version = json.optString("tag_name").removePrefix("v")
-        val latest = version.substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
-        val current = listOf(2, 3, 1)
-        var newer = false
-        for (i in 0..2) {
-            val diff = (latest.getOrElse(i) { 0 }).compareTo(current[i])
-            if (diff != 0) { newer = diff > 0; break }
+        val releases = org.json.JSONArray(connection.getInputStream().bufferedReader().use { it.readText() })
+        val current = listOf(2, 3, 2)
+
+        fun parseVersion(raw: String): List<Int>? {
+            val normalized = raw.removePrefix("v").substringBefore("-").substringBefore(" ")
+            val parts = normalized.split(".")
+            if (parts.size != 3) return null
+            return parts.map { it.toIntOrNull() ?: return null }
         }
-        if (!newer) return null
-        val assets = json.optJSONArray("assets") ?: return null
-        var apk: String? = null
-        for (i in 0 until assets.length()) {
-            val asset = assets.getJSONObject(i)
-            if (asset.optString("name") == version.substringBefore("-") + ".apk") apk = asset.optString("browser_download_url")
+
+        fun isNewer(candidate: List<Int>, baseline: List<Int>): Boolean {
+            for (i in 0..2) {
+                if (candidate[i] != baseline[i]) return candidate[i] > baseline[i]
+            }
+            return false
         }
-        if (apk.isNullOrBlank()) null else Pair(version, apk!!)
+
+        var bestVersion: List<Int>? = null
+        var bestResult: Pair<String, String>? = null
+
+        for (i in 0 until releases.length()) {
+            val release = releases.getJSONObject(i)
+            if (release.optBoolean("draft", false)) continue
+            val version = release.optString("tag_name").removePrefix("v")
+            val numbers = parseVersion(version) ?: continue
+            if (!isNewer(numbers, current)) continue
+
+            val assets = release.optJSONArray("assets") ?: continue
+            val apkName = numbers.joinToString(".") + ".apk"
+            var apkUrl: String? = null
+            for (j in 0 until assets.length()) {
+                val asset = assets.getJSONObject(j)
+                if (asset.optString("name") == apkName && asset.optLong("size", 0L) > 0L) {
+                    apkUrl = asset.optString("browser_download_url")
+                    break
+                }
+            }
+            if (apkUrl.isNullOrBlank()) continue
+            if (bestVersion == null || isNewer(numbers, bestVersion!!)) {
+                bestVersion = numbers
+                bestResult = Pair(numbers.joinToString("."), apkUrl!!)
+            }
+        }
+        bestResult
     } catch (_: Exception) {
         null
     }
@@ -289,7 +317,7 @@ private fun SettingsScreen(modifier: Modifier) {
         item {
             Text("关于", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             InfoCard("应用名称", "KillSuoji")
-            InfoCard("版本", "V2.3.2 Beta")
+            InfoCard("版本", "V2.3.3 Beta")
         }
     }
 }
