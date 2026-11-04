@@ -1,11 +1,12 @@
 # KillSuoji
 
-KillSuoji Android app and dedicated GitHub Pages download site.
+KillSuoji Android 应用及专属下载站。
 
-- App: Kotlin Android application, mint/white KSU-inspired UI.
-- Home: work status, app version and Root status.
-- Launch: Root availability check, execution confirmation and five-volume-up-key prompt.
-- Safety: does not force-stop other apps or system processes.
-- Website: https://3525808867a-dot.github.io/k70-turbo/
+- **当前版本：V1.0.0 beta**（未经明确允许不修改版本号）
+- **主页：**工作状态、版本信息与 Root 状态。
+- **启动页：**Root 权限检测、执行确认与状态提示。
+- **按键提示：**连续按五次音量上键显示提示。
+- **安全边界：**不强制结束其他应用或系统进程。
+- **下载页：**https://3525808867a-dot.github.io/
 
-Pushes to `main` build a debug APK and publish it as the `v1.0.0` GitHub Release.
+推送到 main 后由 GitHub Actions 自动构建 APK；构建成功后才会更新下载文件并发布。
