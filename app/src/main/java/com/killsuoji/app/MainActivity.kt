@@ -1,6 +1,13 @@
 package com.killsuoji.app
 
+import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
+import android.widget.Toast
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,7 +24,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.URL
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
@@ -137,7 +147,118 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                 }
             }
         }
+        item { UpdateCard() }
         item { InfoCard("版本", "V2.3.0 Beta") }
+    }
+}
+
+
+private fun fetchLatestUpdate(): Pair<String, String>? {
+    val connection = URL("https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases/latest").openConnection()
+    connection.connectTimeout = 8000
+    connection.readTimeout = 8000
+    connection.setRequestProperty("Accept", "application/vnd.github+json")
+    connection.setRequestProperty("User-Agent", "KillSuoji-Android")
+    return try {
+        val json = JSONObject(connection.getInputStream().bufferedReader().use { it.readText() })
+        val version = json.optString("tag_name").removePrefix("v")
+        val latest = version.substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
+        val current = listOf(2, 3, 0)
+        var newer = false
+        for (i in 0..2) {
+            val diff = (latest.getOrElse(i) { 0 }).compareTo(current[i])
+            if (diff != 0) { newer = diff > 0; break }
+        }
+        if (!newer) return null
+        val assets = json.optJSONArray("assets") ?: return null
+        var apk: String? = null
+        for (i in 0 until assets.length()) {
+            val asset = assets.getJSONObject(i)
+            if (asset.optString("name") == version.substringBefore("-") + ".apk") apk = asset.optString("browser_download_url")
+        }
+        if (apk.isNullOrBlank()) null else Pair(version, apk!!)
+    } finally { connection.disconnect() }
+}
+
+@Composable
+private fun UpdateCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var update by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var message by remember { mutableStateOf("正在检查新版本…") }
+    var downloadId by remember { mutableStateOf<Long?>(null) }
+    var downloading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            try {
+                update = withContext(Dispatchers.IO) { fetchLatestUpdate() }
+                message = if (update == null) "当前已是最新版本" else "发现新版本 V" + update!!.first + "，点击即可下载安装"
+            } catch (_: Exception) { message = "暂时无法检查更新，请检查网络" }
+            delay(6 * 60 * 60 * 1000L)
+        }
+    }
+
+    LaunchedEffect(downloadId) {
+        val id = downloadId ?: return@LaunchedEffect
+        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        while (true) {
+            val cursor = manager.query(DownloadManager.Query().setFilterById(id))
+            val status = if (cursor.moveToFirst()) cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)) else -1
+            cursor.close()
+            if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                downloading = false
+                message = "安装包已下载完成，点击按钮安装"
+                break
+            } else if (status == DownloadManager.STATUS_FAILED) {
+                downloading = false
+                downloadId = null
+                message = "下载失败，请稍后重试"
+                break
+            }
+            delay(700)
+        }
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("版本更新", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+            Text(message, color = Color(0xFF68736D), fontSize = 14.sp)
+            if (update != null || downloadId != null) {
+                Card(modifier = Modifier.fillMaxWidth().clickable(enabled = !downloading) {
+                    val id = downloadId
+                    if (id != null) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+                            context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + context.packageName)))
+                            Toast.makeText(context, "请允许安装此应用的未知来源应用，然后返回点击安装更新", Toast.LENGTH_LONG).show()
+                        } else {
+                            val uri = (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).getUriForDownloadedFile(id)
+                            if (uri != null) {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, "application/vnd.android.package-archive")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            }
+                        }
+                    } else {
+                        val info = update ?: return@clickable
+                        val request = DownloadManager.Request(Uri.parse(info.second))
+                            .setTitle("KillSuoji V" + info.first)
+                            .setDescription("正在下载更新安装包")
+                            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "KillSuoji-" + info.first + ".apk")
+                        downloadId = (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+                        downloading = true
+                        message = "正在下载 V" + info.first + "…"
+                    }
+                }) {
+                    Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) {
+                        Text(if (downloading) "正在下载…" else if (downloadId != null) "安装更新" else "立即更新",
+                            color = KsuAccent, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
     }
 }
 
