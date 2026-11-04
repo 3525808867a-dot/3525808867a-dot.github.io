@@ -144,7 +144,7 @@ private fun KillSuojiUi(rootAvailable: Boolean, onExecute: () -> Unit) {
                         }
                         Spacer(Modifier.height(26.dp))
                         Text("工作中", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = KsuInk)
-                        Text("V1.0.0 beta", color = KsuMuted, fontSize = 14.sp)
+                        Text("V1.1.0 beta", color = KsuMuted, fontSize = 14.sp)
                         Spacer(Modifier.height(8.dp))
                         Text(if (rootAvailable) "✓" else "!", modifier = Modifier.align(Alignment.End), fontSize = 42.sp, color = KsuGreen)
                     }
@@ -153,7 +153,7 @@ private fun KillSuojiUi(rootAvailable: Boolean, onExecute: () -> Unit) {
                         KsuCard(Modifier.weight(1f)) { Text("0", fontSize = 28.sp, fontWeight = FontWeight.Bold); Text("模块", color = KsuMuted) }
                     }
                     KsuCard {
-                        InfoRow("应用版本", "V1.0.0 beta")
+                        InfoRow("应用版本", "V1.1.0 beta")
                         HorizontalDivider(color = Color(0xFFE8EBEF))
                         InfoRow("Root 权限", if (rootAvailable) "已获得" else "未获得")
                         HorizontalDivider(color = Color(0xFFE8EBEF))
