@@ -134,9 +134,24 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
      renderUpdate('undetectable','无法读取仓库最新版本：'+err.message);
    }
  }
- document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('available','开发者手动切换为可下载显示；自动检测结果会在下次检查时更新。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+currentVersion.split(' ')[0]+'/'+currentVersion.split(' ')[0]+'.apk');});
- document.getElementById('force-unavailable').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('undetectable','开发者手动切换为无法检测显示；自动检测结果会在下次检查时更新。');});
+ document.getElementById('force-available').addEventListener('click',e=>{
+   e.preventDefault();e.stopPropagation();
+   renderUpdate('available','开发者手动设置：允许下载。自动检测已关闭，下载状态只由 ✓ / × 按钮调整。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+currentVersion.split(' ')[0]+'/'+currentVersion.split(' ')[0]+'.apk',true);
+ });
+ document.getElementById('force-unavailable').addEventListener('click',e=>{
+   e.preventDefault();e.stopPropagation();
+   renderUpdate('unavailable','开发者手动设置：禁止下载。自动检测已关闭，下载状态只由 ✓ / × 按钮调整。',null,true);
+ });
  syncAutoCheckButton();
+ if(!autoCheckEnabled){
+   let savedMode=null;
+   try{savedMode=localStorage.getItem(downloadStateKey);}catch(e){}
+   if(savedMode==='available'){
+     renderUpdate('available','开发者手动设置：允许下载。自动检测已关闭，下载状态只由 ✓ / × 按钮调整。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+currentVersion.split(' ')[0]+'/'+currentVersion.split(' ')[0]+'.apk');
+   }else if(savedMode==='unavailable'||savedMode==='undetectable'){
+     renderUpdate('unavailable','开发者手动设置：禁止下载。自动检测已关闭，下载状态只由 ✓ / × 按钮调整。');
+   }
+ }
  loadHistoryVersions();
  if(autoCheckEnabled)startAutoCheck();
  setInterval(loadHistoryVersions,300000);
