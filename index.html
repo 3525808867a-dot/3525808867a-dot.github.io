@@ -38,7 +38,6 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  const updateTitle=updateCard.querySelector('h2');
  const downloadStateKey='killsuoji-download-state';
  const currentVersion='2.1.0 Beta';
- let forcedMode=null;
  function renderUpdate(mode,message,downloadUrl,save=false){
    const available=mode==='available';
    if(save){try{localStorage.setItem(downloadStateKey,mode);}catch(e){}}
@@ -52,7 +51,6 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
    else{download.removeAttribute('href');download.removeAttribute('download');download.textContent='下载';}
  }
  async function checkRepositoryVersion(){
-   if(forcedMode)return;
    renderUpdate('checking','正在检查 GitHub 仓库中的最新版本…');
    try{
      const sourceUrl='https://raw.githubusercontent.com/3525808867a-dot/3525808867a-dot.github.io/main/app/build.gradle.kts';
@@ -81,12 +79,10 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
      renderUpdate('undetectable','无法读取仓库最新版本：'+err.message);
    }
  }
- document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();forcedMode='available';renderUpdate('available','开发者已强制设置为可下载状态。', 'https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.1.0/app-debug.apk',true);});
- document.getElementById('force-unavailable').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();forcedMode='undetectable';renderUpdate('undetectable','开发者已强制设置为无法检测最新版本。',null,true);});
- let savedState=null;try{const stored=localStorage.getItem(downloadStateKey);if(stored==='available'||stored==='unavailable'||stored==='undetectable')savedState=stored;else if(localStorage.getItem('killsuoji-download-available')==='1')savedState='available';}catch(e){}
- if(savedState==='available'){forcedMode='available';renderUpdate('available','开发者已强制设置为可下载状态。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.1.0/app-debug.apk');}
- else if(savedState==='undetectable'){forcedMode='undetectable';renderUpdate('undetectable','开发者已强制设置为无法检测最新版本。');}
- else{checkRepositoryVersion();}
+ document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('available','开发者手动切换为可下载显示；自动检测结果会在下次检查时更新。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.1.0/app-debug.apk');});
+ document.getElementById('force-unavailable').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('undetectable','开发者手动切换为无法检测显示；自动检测结果会在下次检查时更新。');});
+ checkRepositoryVersion();
+ setInterval(checkRepositoryVersion,30000);
  let taps=0,resetTap,timer=null,opened=false;
  const endpoint='https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/actions/runs?per_page=1';
  const state=document.getElementById('build-state'),detail=document.getElementById('build-detail'),bar=document.getElementById('build-bar'),stamp=document.getElementById('build-time');
