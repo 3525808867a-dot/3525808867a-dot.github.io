@@ -10,8 +10,8 @@ android {
         applicationId = "com.killsuoji.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "2.3.1 Beta"
+        versionCode = 7
+        versionName = "2.3.2 Beta"
     }
     buildFeatures { compose = true }
     compileOptions {
