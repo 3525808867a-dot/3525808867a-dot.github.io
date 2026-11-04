@@ -71,7 +71,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
    updateSummary.textContent=message;
    download.classList.toggle('available',available);
    download.setAttribute('aria-disabled',String(!available));
-   if(available&&downloadUrl){download.href=downloadUrl;download.setAttribute('download',currentVersion.split(' ')[0]+'.apk');download.textContent='下载';}
+   if(available&&downloadUrl){download.href=downloadUrl;download.setAttribute('download',decodeURIComponent(downloadUrl.split('/').pop()||'killsuoji.apk'));download.textContent='下载';}
    else{download.removeAttribute('href');download.removeAttribute('download');download.textContent='下载';}
  }
  async function loadHistoryVersions(){
@@ -111,33 +111,28 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
   }
  }
  async function checkRepositoryVersion(){
-   renderUpdate('checking','正在检查 GitHub 仓库中的最新版本…');
+   renderUpdate('checking','正在检查 GitHub Releases 中已发布的安装包…');
    try{
-     const sourceUrl='https://raw.githubusercontent.com/3525808867a-dot/3525808867a-dot.github.io/main/app/build.gradle.kts?_'+Date.now();
-     const sourceRes=await fetch(sourceUrl,{cache:'no-store'});
-     if(!sourceRes.ok)throw new Error('无法读取仓库版本文件（HTTP '+sourceRes.status+'）');
-     const gradleText=await sourceRes.text();
-     const match=gradleText.match(/versionName\s*=\s*"([^"]+)"/);
-     if(!match)throw new Error('仓库中没有找到 versionName');
-     const repoVersion=match[1];
-     const tag='v'+repoVersion.split(' ')[0];
-     const releaseRes=await fetch('https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases/tags/'+encodeURIComponent(tag),{cache:'no-store',headers:{'Accept':'application/vnd.github+json'}});
-     let assetUrl=null;
-     if(releaseRes.ok){
-       const release=await releaseRes.json();
-       const asset=(release.assets||[]).find(x=>x.name===repoVersion.split(' ')[0]+'.apk');
-       if(asset)assetUrl=asset.browser_download_url;
+     const url='https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases?per_page=100&_='+Date.now();
+     const res=await fetch(url,{cache:'no-store',headers:{'Accept':'application/vnd.github+json'}});
+     if(!res.ok)throw new Error('GitHub Releases HTTP '+res.status);
+     const releases=await res.json();
+     const published=releases.map(release=>{
+       const version=(release.tag_name||'').replace(/^v/,'');
+       if(release.draft||!/^\\d+\\.\\d+\\.\\d+$/.test(version))return null;
+       const asset=(release.assets||[]).find(item=>item.name===version+'.apk')||(release.assets||[]).find(item=>item.name==='app-debug.apk');
+       return asset?{version,url:asset.browser_download_url,created:release.published_at||release.created_at}:null;
+     }).filter(Boolean).sort((a,b)=>b.version.localeCompare(a.version,undefined,{numeric:true}));
+     if(!published.length){
+       renderUpdate('unavailable','GitHub Releases 中暂时没有找到已发布且带有 APK 的版本。');
+       return;
      }
-     // Never invent a download URL: only enable downloads when the matching APK asset exists in a published GitHub Release.
-     if(repoVersion===currentVersion&&assetUrl){
-       renderUpdate('available','仓库最新版本：V'+repoVersion+'。已检测到对应安装包，可以下载。',assetUrl);
-     }else if(repoVersion===currentVersion){
-       renderUpdate('unavailable','已检测到仓库版本：V'+repoVersion+'，但仓库暂未发布对应安装包。');
-     }else{
-       renderUpdate('unavailable','仓库版本为 V'+repoVersion+'，网站当前版本为 V'+currentVersion+'；请等待网站版本同步及安装包发布。');
-     }
+     const latest=published[0];
+     const sourceVersion=currentVersion.split(' ')[0];
+     const note=latest.version===sourceVersion?'':'（V'+sourceVersion+' 尚未发布安装包，已自动回退到可下载版本）';
+     renderUpdate('available','已检测到最新可下载版本：V'+latest.version+' Beta。'+note+' 点击“下载”即可获取安装包。',latest.url);
    }catch(err){
-     renderUpdate('undetectable','无法读取仓库最新版本：'+err.message);
+     renderUpdate('undetectable','无法读取 GitHub 已发布版本：'+err.message);
    }
  }
  document.getElementById('force-available').addEventListener('click',e=>{
