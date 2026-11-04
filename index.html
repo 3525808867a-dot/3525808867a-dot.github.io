@@ -10,7 +10,7 @@
 :root{color-scheme:light;--bg:#f5f8f6;--card:#fff;--mint:#dff8e8;--green:#20c66a;--deep:#078846;--text:#151a17;--muted:#68736d;--line:#e7eee9}
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#f2faf5,#f8faf8 48%,#f2f7f4);color:var(--text);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
 main{width:min(760px,92%);margin:auto;padding:42px 0 60px}.top{display:flex;align-items:center;gap:12px;font-weight:750;letter-spacing:.02em}.logo{width:46px;height:46px;display:block;object-fit:contain;border:0;border-radius:0}.top small{display:block;color:var(--muted);font-weight:500;letter-spacing:0;font-size:12px}
-h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spacing:-.04em}.sub{color:var(--muted);margin:0;max-width:590px}
+h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spacing:-.04em}.update-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.auto-check-toggle{display:none;padding:8px 12px;border:1px solid #d8e2dc;border-radius:10px;background:#fff;color:#16864b;font-size:13px;font-weight:750;cursor:pointer;letter-spacing:0}.auto-check-toggle.visible{display:inline-flex}.auto-check-toggle:active{transform:scale(.97)}.sub{color:var(--muted);margin:0;max-width:590px}
 .hero{margin-top:30px;padding:28px;border-radius:28px;background:linear-gradient(130deg,#e4faeb,#d5f7e1);position:relative;overflow:hidden;min-height:230px}.tag{display:inline-flex;padding:4px 12px;border-radius:99px;background:#baf0cc;color:#087b3d;font-size:12px;font-weight:750}.hero h2{font-size:34px;margin:42px 0 2px}.hero p{color:#53705e;margin:0}.hero.error{background:linear-gradient(130deg,#fff0f0,#ffe1e1);border:1px solid #ffd0d0}.hero.error .tag{background:#ffdada;color:#b42318}.hero.error h2,.hero.error p{color:#b42318}.check{position:absolute;right:-20px;bottom:-50px;width:190px;height:190px;border:15px solid #36d47b;border-radius:50%;color:#36d47b;font-size:110px;line-height:155px;text-align:center;font-weight:300;opacity:.8}.hero.error .check{border-color:#e5484d;color:#e5484d}
 .dev-toggle-row{display:flex;gap:8px;margin-top:22px}.dev-toggle-row[hidden]{display:none!important}
 .dev-toggle{width:34px;height:30px;border-radius:9px;border:1px solid #d8e2dc;background:#fff;color:#16864b;font-weight:900;font-size:17px;cursor:pointer}
@@ -23,7 +23,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
 <body><main>
 <header class="top" id="dev-trigger" title="KillSuoji"><img class="logo" src="app/src/main/res/drawable-nodpi/killsuoji_foreground.webp" alt="KillSuoji 软件图标"><div>KillSuoji<small>ANDROID TOOL · DOWNLOAD CENTER</small></div></header>
 <h1>KillSuoji 下载中心</h1><p class="sub">一款针对锁机软件的工具，通过 Root 从而拦截锁机。</p>
-<section class="hero error" id="update-card"><div class="dev-toggle-row" id="dev-toggle-row" hidden><button class="dev-toggle" id="force-available" type="button" title="恢复可下载状态">✓</button><button class="dev-toggle danger" id="force-unavailable" type="button" title="设为不可下载">×</button></div><span class="tag">KILLSUOJI · ANDROID</span><h2>检查更新</h2><p id="update-summary">V2.2.0 Beta（Miuix 版）已发布，点击下方按钮下载</p><div class="check" id="update-icon">×</div></section>
+<section class="hero error" id="update-card"><div class="dev-toggle-row" id="dev-toggle-row" hidden><button class="dev-toggle" id="force-available" type="button" title="恢复可下载状态">✓</button><button class="dev-toggle danger" id="force-unavailable" type="button" title="设为不可下载">×</button></div><span class="tag">KILLSUOJI · ANDROID</span><div class="update-heading"><h2>检查更新</h2><button class="auto-check-toggle" id="auto-check-toggle" type="button">关闭自动检测更新</button></div><p id="update-summary">V2.2.0 Beta（Miuix 版）已发布，点击下方按钮下载</p><div class="check" id="update-icon">×</div></section>
 <div class="action-row">
 <a class="download-btn" aria-disabled="true">下载</a>
 <a class="action-btn source-btn" href="https://github.com/3525808867a-dot/3525808867a-dot.github.io/tree/main" target="_blank" rel="noopener noreferrer">查看源码</a>
@@ -41,7 +41,27 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  const updateCard=document.getElementById('update-card'),updateSummary=document.getElementById('update-summary'),updateIcon=document.getElementById('update-icon'),download=document.querySelector('.download-btn');
  const updateTitle=updateCard.querySelector('h2');
  const downloadStateKey='killsuoji-download-state';
+ const autoCheckKey='killsuoji-auto-check-enabled';
+ const autoCheckButton=document.getElementById('auto-check-toggle');
  const currentVersion='2.2.0 Beta';
+ let autoCheckEnabled=true,autoCheckTimer=null;
+ try{autoCheckEnabled=localStorage.getItem(autoCheckKey)!=='false';}catch(e){}
+ function syncAutoCheckButton(){
+   autoCheckButton.textContent=autoCheckEnabled?'关闭自动检测更新':'开启自动检测更新';
+ }
+ function stopAutoCheck(){if(autoCheckTimer){clearInterval(autoCheckTimer);autoCheckTimer=null;}}
+ function startAutoCheck(){
+   stopAutoCheck();
+   if(!autoCheckEnabled)return;
+   checkRepositoryVersion();
+   autoCheckTimer=setInterval(checkRepositoryVersion,15000);
+ }
+ autoCheckButton.addEventListener('click',()=>{
+   autoCheckEnabled=!autoCheckEnabled;
+   try{localStorage.setItem(autoCheckKey,String(autoCheckEnabled));}catch(e){}
+   syncAutoCheckButton();
+   if(autoCheckEnabled)startAutoCheck();else stopAutoCheck();
+ });
  function renderUpdate(mode,message,downloadUrl,save=false){
    const available=mode==='available';
    if(save){try{localStorage.setItem(downloadStateKey,mode);}catch(e){}}
@@ -116,14 +136,14 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  }
  document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('available','开发者手动切换为可下载显示；自动检测结果会在下次检查时更新。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+currentVersion.split(' ')[0]+'/'+currentVersion.split(' ')[0]+'.apk');});
  document.getElementById('force-unavailable').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('undetectable','开发者手动切换为无法检测显示；自动检测结果会在下次检查时更新。');});
- checkRepositoryVersion();
+ syncAutoCheckButton();
  loadHistoryVersions();
- setInterval(checkRepositoryVersion,30000);
+ if(autoCheckEnabled)startAutoCheck();
  setInterval(loadHistoryVersions,300000);
  let taps=0,resetTap,timer=null,opened=false;
  const endpoint='https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/actions/runs?per_page=1';
  const state=document.getElementById('build-state'),detail=document.getElementById('build-detail'),bar=document.getElementById('build-bar'),stamp=document.getElementById('build-time');
- function toggle(){opened=!opened;panel.hidden=!opened;controls.hidden=!opened;if(opened){refresh();timer=setInterval(refresh,1000);}else if(timer){clearInterval(timer);timer=null;}}
+ function toggle(){opened=!opened;panel.hidden=!opened;controls.hidden=!opened;autoCheckButton.classList.toggle('visible',opened);if(opened){refresh();timer=setInterval(refresh,1000);}else if(timer){clearInterval(timer);timer=null;}}
  trigger.addEventListener('click',()=>{taps++;clearTimeout(resetTap);if(taps>=10){taps=0;if(opened){toggle();return;}const code=window.prompt('请输入开发者模式密码');if(code==='0312'){window.alert('开发者模式已开启');toggle();}else if(code!==null){window.alert('密码错误');}}else{resetTap=setTimeout(()=>{taps=0;},6000);}});
  async function refresh(){try{const res=await fetch(endpoint,{cache:'no-store',headers:{'Accept':'application/vnd.github+json'}});if(!res.ok)throw new Error(res.status===403?'GitHub API 请求频率受限':'HTTP '+res.status);const data=await res.json(),run=data.workflow_runs&&data.workflow_runs[0];if(!run){state.textContent='暂无构建';detail.textContent='仓库暂未找到 Actions 构建记录';bar.style.width='0%';return;}const status=run.status,result=run.conclusion;let pct=4,label='等待开始';if(status==='in_progress'){pct=55;label='正在构建';}else if(status==='completed'){pct=100;label=result==='success'?'构建成功':result==='cancelled'?'已取消':'构建失败';}else if(status==='queued'){pct=8;label='排队中';}state.textContent=label;detail.textContent='工作流：'+run.name+' · '+(run.head_sha||'').slice(0,7)+' · '+(result||status);bar.style.width=pct+'%';stamp.textContent='最近更新：'+new Date(run.updated_at||run.created_at).toLocaleString()+' · 每秒刷新';}catch(e){state.textContent='暂时无法获取';detail.textContent=e.message+'；请稍后重试';stamp.textContent='刷新时间：'+new Date().toLocaleTimeString();}}
 })();
