@@ -143,7 +143,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.3.3 Beta", fontSize = 16.sp, color = Color(0xFF777777))
+                    Text("V2.3.4 Beta", fontSize = 16.sp, color = Color(0xFF777777))
                 }
             }
         }
@@ -162,7 +162,7 @@ private fun fetchLatestUpdate(): Pair<String, String>? {
     connection.setRequestProperty("User-Agent", "KillSuoji-Android")
     return try {
         val releases = org.json.JSONArray(connection.getInputStream().bufferedReader().use { it.readText() })
-        val current = listOf(2, 3, 2)
+        val current = listOf(2, 3, 4)
 
         fun parseVersion(raw: String): List<Int>? {
             val normalized = raw.removePrefix("v").substringBefore("-").substringBefore(" ")
