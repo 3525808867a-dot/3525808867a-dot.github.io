@@ -10,8 +10,18 @@ android {
         applicationId = "com.killsuoji.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "2.3.5 Beta"
+        versionCode = 12
+        versionName = "2.3.6 Beta"
+    }
+    val stableKeystorePath = System.getenv("KILLSUOJI_KEYSTORE_FILE")
+    if (!stableKeystorePath.isNullOrBlank()) {
+        signingConfigs.create("stable") {
+            storeFile = file(stableKeystorePath)
+            storePassword = System.getenv("KILLSUOJI_STORE_PASSWORD")
+            keyAlias = System.getenv("KILLSUOJI_KEY_ALIAS")
+            keyPassword = System.getenv("KILLSUOJI_KEY_PASSWORD")
+        }
+        buildTypes.getByName("debug").signingConfig = signingConfigs.getByName("stable")
     }
     buildFeatures { compose = true }
     compileOptions {
