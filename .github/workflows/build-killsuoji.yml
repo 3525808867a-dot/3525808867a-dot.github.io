@@ -27,6 +27,22 @@ jobs:
           APK_NAME="${VERSION_NUMBER}.apk"
           echo "number=$VERSION_NUMBER" >> "$GITHUB_OUTPUT"
           echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+      - name: Configure persistent APK signing
+        env:
+          KILLSUOJI_KEYSTORE_BASE64: ${{ secrets.KILLSUOJI_KEYSTORE_BASE64 }}
+          KILLSUOJI_STORE_PASSWORD: ${{ secrets.KILLSUOJI_STORE_PASSWORD }}
+          KILLSUOJI_KEY_ALIAS: ${{ secrets.KILLSUOJI_KEY_ALIAS }}
+          KILLSUOJI_KEY_PASSWORD: ${{ secrets.KILLSUOJI_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KILLSUOJI_KEYSTORE_BASE64" ] || [ -z "$KILLSUOJI_STORE_PASSWORD" ] || [ -z "$KILLSUOJI_KEY_ALIAS" ] || [ -z "$KILLSUOJI_KEY_PASSWORD" ]; then
+            echo "::error::Persistent signing secrets are missing. Add all four KILLSUOJI_* secrets in repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "$KILLSUOJI_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/killsuoji-release.jks"
+          echo "KILLSUOJI_KEYSTORE_FILE=$RUNNER_TEMP/killsuoji-release.jks" >> "$GITHUB_ENV"
+          echo "KILLSUOJI_STORE_PASSWORD=$KILLSUOJI_STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KILLSUOJI_KEY_ALIAS=$KILLSUOJI_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "KILLSUOJI_KEY_PASSWORD=$KILLSUOJI_KEY_PASSWORD" >> "$GITHUB_ENV"
       - name: Build debug APK
         run: gradle assembleDebug
       - name: Copy versioned APK to download site
