@@ -1,7 +1,21 @@
-# K70 至尊版性能监控（KernelSU WebUI）
+# KillSuoji · Android 应用
 
-全中文网页式只读性能面板。模块入口位于 module/webroot/index.html。
+KillSuoji 是一款 Android 工具应用，提供简洁的浅色薄荷绿界面与安全的 Root 状态检测流程。
 
-GitHub Actions 会在推送到 main 或手动运行时，生成 K70Turbo_WebUI_中文控制台_V3.0.zip 并作为构建产物上传。
+## 当前版本
+- 版本：**V1.0.0 beta**
+- 平台：Android
+- 下载页：https://3525808867a-dot.github.io/
+- APK：[KillSuoji.apk](./KillSuoji.apk)
 
-仅执行 getprop、uname、cat、grep 等只读查询，不修改 CPU/GPU 频率、电压、温控或调度参数。
+## 功能简介
+- **主页**：显示应用工作状态与版本信息。
+- **启动页**：检测 Root（su）权限状态，并提供执行入口。
+- **按键提示**：连续按五次音量上键时显示提示。
+- **安全设计**：仅管理应用自身状态，不强制结束其他应用或系统进程。
+
+## 版本约定
+当前版本固定为 **V1.0.0 beta**。未经明确确认，不修改版本号。
+
+## 项目说明
+本仓库用于 KillSuoji Android 应用源码、下载页及 APK 发布。与红米 K70 至尊版性能控制模块无关。
