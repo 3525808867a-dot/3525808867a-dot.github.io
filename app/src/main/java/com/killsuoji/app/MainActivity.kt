@@ -148,12 +148,12 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
             }
         }
         item { UpdateCard() }
-        item { InfoCard("版本", "V2.3.3 Beta") }
+        item { InfoCard("版本", "V2.3.4 Beta") }
     }
 }
 
 
-private fun fetchLatestUpdate(): Pair<String, String>? {
+private fun fetchLatestUpdate(installedVersionName: String): Pair<String, String>? {
     val connection = URL("https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases?per_page=100")
         .openConnection()
     connection.connectTimeout = 10000
@@ -162,7 +162,7 @@ private fun fetchLatestUpdate(): Pair<String, String>? {
     connection.setRequestProperty("User-Agent", "KillSuoji-Android")
     return try {
         val releases = org.json.JSONArray(connection.getInputStream().bufferedReader().use { it.readText() })
-        val current = listOf(2, 3, 4)
+        val current = parseVersion(installedVersionName) ?: return null
 
         fun parseVersion(raw: String): List<Int>? {
             val normalized = raw.removePrefix("v").substringBefore("-").substringBefore(" ")
@@ -220,7 +220,8 @@ private fun UpdateCard() {
 
     LaunchedEffect(Unit) {
         try {
-            update = withContext(Dispatchers.IO) { fetchLatestUpdate() }
+            val installedVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "2.3.4"
+            update = withContext(Dispatchers.IO) { fetchLatestUpdate(installedVersion) }
             message = if (update == null) "当前已是最新版本" else "发现新版本 V" + update!!.first + "，点击即可下载安装"
         } catch (_: Exception) {
             message = "暂时无法检查更新，请检查网络"
