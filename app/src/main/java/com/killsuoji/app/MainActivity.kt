@@ -143,12 +143,11 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.3.4 Beta", fontSize = 16.sp, color = Color(0xFF777777))
+                    
                 }
             }
         }
         item { UpdateCard() }
-        item { InfoCard("版本", "V2.3.4 Beta") }
     }
 }
 
@@ -318,7 +317,6 @@ private fun SettingsScreen(modifier: Modifier) {
         item {
             Text("关于", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             InfoCard("应用名称", "KillSuoji")
-            InfoCard("版本", "V2.3.4 Beta")
         }
     }
 }
