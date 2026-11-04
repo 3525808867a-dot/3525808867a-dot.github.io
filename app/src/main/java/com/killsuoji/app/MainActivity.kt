@@ -177,7 +177,7 @@ private fun fetchLatestUpdate(): Pair<String, String>? {
             if (asset.optString("name") == version.substringBefore("-") + ".apk") apk = asset.optString("browser_download_url")
         }
         if (apk.isNullOrBlank()) null else Pair(version, apk!!)
-    } finally { connection.disconnect() }
+    }
 }
 
 @Composable
