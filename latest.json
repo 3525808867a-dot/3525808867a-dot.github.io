@@ -1,9 +1,9 @@
 {
   "name": "KillSuoji Android 应用",
-  "version": "V1.1.0 beta",
-  "version_code": 2,
+  "version": "V2.2.0 Beta",
+  "version_code": 5,
   "status": "temporarily_unavailable",
-  "updated_at": "2026-11-04",
+  "updated_at": "2026-11-05",
   "download_page": "https://3525808867a-dot.github.io/",
   "apk": "https://3525808867a-dot.github.io/KillSuoji.apk",
   "features": [
@@ -12,5 +12,5 @@
     "连续按五次音量上键时显示提示。",
     "不强制结束其他应用或系统进程。"
   ],
-  "notice": "V1.1.0 beta 安装包正在修复构建，下载入口暂时关闭；待构建验证通过后恢复。"
+  "notice": "V2.2.0 Beta 安装包正在构建与验证，下载入口暂时关闭；待构建验证通过后恢复。"
 }
