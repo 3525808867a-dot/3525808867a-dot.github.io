@@ -3,78 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#080d18">
-<title>K70 Turbo · 模块中心</title>
+<meta name="theme-color" content="#f5fbf7">
+<meta name="description" content="KillSuoji Android 工具下载中心">
+<title>KillSuoji · 专属下载中心</title>
 <style>
-:root{color-scheme:dark;--bg:#080d18;--panel:#101a2b;--line:#20324b;--cyan:#55d9ff;--green:#58e0a2;--muted:#9aacc4}
-*{box-sizing:border-box}
-body{margin:0;background:radial-gradient(ellipse at 50% -15%,#163653 0,transparent 55%),var(--bg);color:#eef6ff;font:16px/1.6 system-ui,sans-serif;min-height:100vh}
-main{width:min(900px,92%);margin:0 auto;padding:56px 0}
-.top{display:flex;align-items:center;gap:10px;color:var(--cyan);letter-spacing:.16em;font-size:12px;font-weight:700}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
-h1{font-size:clamp(34px,7vw,58px);line-height:1.05;margin:22px 0 12px}
-.sub{color:var(--muted);max-width:620px}
-.panel{margin-top:34px;padding:26px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(145deg,#122139dd,#0d1524ee)}
-.row{display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap}
-.tag{display:inline-flex;align-items:center;gap:8px;border:1px solid #245d50;color:var(--green);padding:5px 11px;border-radius:99px;font-size:13px}
-h2{font-size:22px;margin:15px 0 4px}
-.version{color:var(--cyan);font-weight:700;font-size:14px}
-.meta{color:var(--muted);font-size:13px}
-ul{padding-left:20px;color:#c7d5e8}
-li{margin:7px 0}
-a.btn{display:inline-block;margin-top:18px;padding:13px 21px;border-radius:12px;background:var(--cyan);color:#04111c;text-decoration:none;font-weight:800}
-.foot{margin-top:22px;color:#71839d;font-size:12px}
-#check{color:var(--muted);font-size:12px;margin-top:14px}
-@media(max-width:560px){main{padding:36px 0}.panel{padding:20px}}
+:root{color-scheme:light;--bg:#f5f8f6;--card:#fff;--mint:#dff8e8;--green:#20c66a;--deep:#078846;--text:#151a17;--muted:#68736d;--line:#e7eee9}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#f2faf5,#f8faf8 48%,#f2f7f4);color:var(--text);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
+main{width:min(760px,92%);margin:auto;padding:42px 0 60px}.top{display:flex;align-items:center;gap:12px;font-weight:750;letter-spacing:.02em}.logo{width:46px;height:46px;border:2px solid #111;border-radius:50%;display:grid;place-items:center;font-weight:900;font-style:italic;font-size:15px}.top small{display:block;color:var(--muted);font-weight:500;letter-spacing:0;font-size:12px}
+h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spacing:-.04em}.sub{color:var(--muted);margin:0;max-width:590px}
+.hero{margin-top:30px;padding:28px;border-radius:28px;background:linear-gradient(130deg,#e4faeb,#d5f7e1);position:relative;overflow:hidden;min-height:230px}.tag{display:inline-flex;padding:4px 12px;border-radius:99px;background:#baf0cc;color:#087b3d;font-size:12px;font-weight:750}.hero h2{font-size:34px;margin:42px 0 2px}.hero p{color:#53705e;margin:0}.check{position:absolute;right:-20px;bottom:-50px;width:190px;height:190px;border:15px solid #36d47b;border-radius:50%;color:#36d47b;font-size:110px;line-height:155px;text-align:center;font-weight:300;opacity:.8}
+.card{margin-top:18px;padding:24px;border-radius:24px;background:var(--card);box-shadow:0 8px 28px #1b58300a;border:1px solid #edf2ee}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.muted{color:var(--muted)}.version{font:600 13px ui-monospace,monospace;color:var(--deep)}a.btn{display:inline-block;margin-top:18px;padding:13px 22px;border-radius:14px;background:var(--mint);color:var(--deep);text-decoration:none;font-weight:800}a.btn:hover{background:#c9f3d7}.btn.secondary{background:#f2f5f3;color:#39443d;margin-left:8px}.info{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}.tile{padding:17px;border-radius:18px;background:#fbfdfb;border:1px solid var(--line)}.tile b{display:block;font-size:20px}.tile span{font-size:13px;color:var(--muted)}ul{padding-left:20px;color:var(--muted)}li{margin:5px 0}.foot{text-align:center;color:#8a968f;font-size:12px;margin-top:28px}
+@media(max-width:560px){main{padding-top:28px}.hero,.card{padding:20px}.hero h2{font-size:30px}.info{grid-template-columns:1fr 1fr}}
 </style>
 </head>
-<body>
-<main>
-<div class="top"><span class="dot"></span>K70 TURBO / MODULE CENTER</div>
-<h1>模块下载中心</h1>
-<p class="sub">为 Redmi K70 至尊版准备的 KernelSU 模块。版本信息会从服务器清单读取。</p>
-<section class="panel">
-<div class="row">
-<span class="tag"><span class="dot"></span><span id="status">正在检查版本…</span></span>
-<span class="version" id="version">版本读取中</span>
-</div>
-<h2 id="name">K70 至尊版实时性能控制 · 1.0.0 beta</h2>
-<div class="meta" id="date">正在读取更新日期…</div><div class="meta" id="author">作者信息读取中…</div>
-<ul id="notes"><li>正在读取更新说明…</li></ul>
-<a class="btn" id="download" href="https://github.com/3525808867a-dot/k70-turbo/actions/runs/41622022162/artifacts/13224605232">下载</a>
-<div id="check">作者：酷安ddddd。 · 1.0.0 beta</div>
+<body><main>
+<header class="top"><div class="logo">Kill</div><div>KillSuoji<small>ANDROID TOOL · DOWNLOAD CENTER</small></div></header>
+<h1>KillSuoji 下载中心</h1><p class="sub">简洁、轻量的 Android 工具。浅色薄荷绿界面，主页与启动页采用统一设计。</p>
+<section class="hero"><span class="tag">KILLSUOJI · ANDROID</span><h2>工作中</h2><p>专属版本下载与更新信息</p><div class="check">✓</div></section>
+<section class="card">
+<div class="row"><strong>KillSuoji Android</strong><span class="version">VERSION 1.0.0</span></div>
+<p class="muted">包含主页、Root 权限状态检测、启动页和安全提示流程。</p>
+<div class="info"><div class="tile"><b>薄荷绿</b><span>统一界面主题</span></div><div class="tile"><b>Android</b><span>APK 安装包</span></div></div>
+<a class="btn" href="https://github.com/3525808867a-dot/k70-turbo/releases/download/v1.0.0/KillSuoji.apk">下载 KillSuoji APK</a>
+<a class="btn secondary" href="https://github.com/3525808867a-dot/k70-turbo">项目源码</a>
+<p class="muted" id="status" style="font-size:13px;margin:14px 0 0">安装前请确认允许此来源安装应用。若下载链接尚未生成，请稍后再试。</p>
 </section>
-<p class="foot">提示：下载的是可直接导入 KernelSU 管理器的模块 ZIP，无需手动解压；安装或更新模块后按管理器提示操作。</p>
-</main>
-<script>
-async function refresh(){
-const status=document.getElementById('status');
-const check=document.getElementById('check');
-try{
-const r=await fetch('latest.json?t='+Date.now(),{cache:'no-store'});
-if(!r.ok)throw new Error('HTTP '+r.status);
-const d=await r.json();
-document.getElementById('name').textContent=d.name||'K70 Turbo 模块';
-document.getElementById('version').textContent='VERSION '+(d.version||'未知');
-document.getElementById('date').textContent='最后更新：'+(d.updated_at||'未提供');
-document.getElementById('author').textContent='作者：'+(d.author||'未提供');
-status.textContent=d.status||'可下载';
-const ul=document.getElementById('notes');
-ul.replaceChildren();
-(d.notes||[]).forEach(t=>{
-const li=document.createElement('li');
-li.textContent=t;
-ul.appendChild(li);
-});
-document.getElementById('download').href=d.file||'K70Turbo_Performance_V4.0.1.zip';
-check.textContent='最近检查：'+new Date().toLocaleTimeString()+' · 每 60 秒自动检查';
-}catch(e){
-status.textContent='暂时无法读取版本';
-check.textContent='读取失败：请确认 latest.json 已上传。';
-}
-}
-refresh();
-setInterval(refresh,60000);
-</script>
-</body>
-</html>
+<section class="card"><strong>版本说明</strong><ul><li>主页：工作状态卡片、设备信息和双导航栏。</li><li>启动：Root 权限检测、执行入口和状态提示。</li><li>音量上键：连续按五次显示提示。</li><li>不会强制结束其他应用或系统进程，避免影响设备稳定性。</li></ul></section>
+<p class="foot">KillSuoji · 专属下载中心</p>
+</main></body></html>
