@@ -142,7 +142,14 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         color = if (!rootDetected) Color(0xFF777777) else Color(0xFFB42318),
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
-                    Text("KillSuoji", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        when {
+                            !rootDetected -> "KillSuoji  无法启动"
+                            isWorking -> "KillSuoji  工作中"
+                            else -> "KillSuoji  未启动"
+                        },
+                        fontSize = 25.sp, fontWeight = FontWeight.Bold
+                    )
                     Text("V2.1.0 Beta", fontSize = 16.sp, color = Color(0xFF777777))
                     Text("KernelSU · Miuix UI", fontSize = 14.sp)
                 }
