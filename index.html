@@ -37,10 +37,56 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  const updateCard=document.getElementById('update-card'),updateSummary=document.getElementById('update-summary'),updateIcon=document.getElementById('update-icon'),download=document.querySelector('.download-btn');
  const updateTitle=updateCard.querySelector('h2');
  const downloadStateKey='killsuoji-download-state';
- function setAvailability(mode,save=true){const available=mode==='available';if(save){try{localStorage.setItem(downloadStateKey,mode);}catch(e){}}updateCard.classList.toggle('error',!available);updateIcon.textContent=available?'✓':'×';updateTitle.textContent=mode==='undetectable'?'无法检测最新版本':'检查更新';updateSummary.textContent=mode==='available'?'V2.1.0 Beta（Miuix 版）已恢复可下载状态':mode==='undetectable'?'最新版本检测失败，当前无法检测是否有更新':'V2.1.0 Beta（Miuix 版）暂时不可下载';download.classList.toggle('available',available);download.setAttribute('aria-disabled',String(!available));if(available){download.href='https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.1.0/app-debug.apk';download.setAttribute('download','KillSuoji-V2.1.0-Beta.apk');download.textContent='下载';}else{download.removeAttribute('href');download.removeAttribute('download');download.textContent='下载';}}
- document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();setAvailability('available');});
- document.getElementById('force-unavailable').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();setAvailability('undetectable');});
- let savedState='unavailable';try{const stored=localStorage.getItem(downloadStateKey);if(stored==='available'||stored==='unavailable'||stored==='undetectable')savedState=stored;else if(localStorage.getItem('killsuoji-download-available')==='1')savedState='available';}catch(e){}setAvailability(savedState,false);
+ const currentVersion='2.1.0 Beta';
+ let forcedMode=null;
+ function renderUpdate(mode,message,downloadUrl,save=false){
+   const available=mode==='available';
+   if(save){try{localStorage.setItem(downloadStateKey,mode);}catch(e){}}
+   updateCard.classList.toggle('error',!available);
+   updateIcon.textContent=available?'✓':'×';
+   updateTitle.textContent=mode==='undetectable'?'无法检测最新版本':'检查更新';
+   updateSummary.textContent=message;
+   download.classList.toggle('available',available);
+   download.setAttribute('aria-disabled',String(!available));
+   if(available&&downloadUrl){download.href=downloadUrl;download.setAttribute('download','KillSuoji-'+currentVersion.replaceAll(' ','-')+'.apk');download.textContent='下载';}
+   else{download.removeAttribute('href');download.removeAttribute('download');download.textContent='下载';}
+ }
+ async function checkRepositoryVersion(){
+   if(forcedMode)return;
+   renderUpdate('checking','正在检查 GitHub 仓库中的最新版本…');
+   try{
+     const sourceUrl='https://raw.githubusercontent.com/3525808867a-dot/3525808867a-dot.github.io/main/app/build.gradle.kts';
+     const sourceRes=await fetch(sourceUrl,{cache:'no-store'});
+     if(!sourceRes.ok)throw new Error('无法读取仓库版本文件（HTTP '+sourceRes.status+'）');
+     const gradleText=await sourceRes.text();
+     const match=gradleText.match(/versionName\\s*=\\s*"([^"]+)"/);
+     if(!match)throw new Error('仓库中没有找到 versionName');
+     const repoVersion=match[1];
+     const tag='v'+repoVersion.split(' ')[0];
+     const releaseRes=await fetch('https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases/tags/'+encodeURIComponent(tag),{cache:'no-store',headers:{'Accept':'application/vnd.github+json'}});
+     let assetUrl=null;
+     if(releaseRes.ok){
+       const release=await releaseRes.json();
+       const asset=(release.assets||[]).find(x=>x.name==='app-debug.apk');
+       if(asset)assetUrl=asset.browser_download_url;
+     }
+     if(repoVersion===currentVersion&&assetUrl){
+       renderUpdate('available','仓库最新版本：V'+repoVersion+'。已检测到对应安装包，可以下载。',assetUrl);
+     }else if(repoVersion===currentVersion){
+       renderUpdate('unavailable','已检测到仓库版本：V'+repoVersion+'，但仓库暂未发布对应安装包。');
+     }else{
+       renderUpdate('unavailable','仓库版本为 V'+repoVersion+'，网站当前版本为 V'+currentVersion+'；请等待网站版本同步及安装包发布。');
+     }
+   }catch(err){
+     renderUpdate('undetectable','无法读取仓库最新版本：'+err.message);
+   }
+ }
+ document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();forcedMode='available';renderUpdate('available','开发者已强制设置为可下载状态。', 'https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.1.0/app-debug.apk',true);});
+ document.getElementById('force-unavailable').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();forcedMode='undetectable';renderUpdate('undetectable','开发者已强制设置为无法检测最新版本。',null,true);});
+ let savedState=null;try{const stored=localStorage.getItem(downloadStateKey);if(stored==='available'||stored==='unavailable'||stored==='undetectable')savedState=stored;else if(localStorage.getItem('killsuoji-download-available')==='1')savedState='available';}catch(e){}
+ if(savedState==='available'){forcedMode='available';renderUpdate('available','开发者已强制设置为可下载状态。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.1.0/app-debug.apk');}
+ else if(savedState==='undetectable'){forcedMode='undetectable';renderUpdate('undetectable','开发者已强制设置为无法检测最新版本。');}
+ else{checkRepositoryVersion();}
  let taps=0,resetTap,timer=null,opened=false;
  const endpoint='https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/actions/runs?per_page=1';
  const state=document.getElementById('build-state'),detail=document.getElementById('build-detail'),bar=document.getElementById('build-bar'),stamp=document.getElementById('build-time');
