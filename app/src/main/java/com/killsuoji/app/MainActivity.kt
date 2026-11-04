@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.concurrent.Executors
 
 private val KsuBg = Color(0xFFF5F6F8)
@@ -41,9 +40,7 @@ class MainActivity : ComponentActivity() {
         window.decorView.systemUiVisibility = 0x00002000 or 0x00000010
         detectRoot()
         setContent {
-            MiuixTheme {
-                KillSuojiUi(rootAvailable = rootAvailable, onExecute = { runSafeGuardCheck() })
-            }
+            KillSuojiUi(rootAvailable = rootAvailable, onExecute = { runSafeGuardCheck() })
         }
     }
 
