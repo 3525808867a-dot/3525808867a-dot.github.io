@@ -19,20 +19,28 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Read app version
+        id: version
+        run: |
+          VERSION_NAME=$(sed -n 's/.*versionName = "\\([^"]*\\)".*/\\1/p' app/build.gradle.kts)
+          VERSION_NUMBER="${VERSION_NAME%% *}"
+          APK_NAME="${VERSION_NUMBER}.apk"
+          echo "number=$VERSION_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
       - name: Build debug APK
         run: gradle assembleDebug
-      - name: Copy APK to download site
+      - name: Copy versioned APK to download site
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk KillSuoji.apk
+          cp app/build/outputs/apk/debug/app-debug.apk "${{ steps.version.outputs.apk_name }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add KillSuoji.apk
+          git add "${{ steps.version.outputs.apk_name }}"
           git commit -m "Publish KillSuoji APK to download site" || echo "APK unchanged"
           git push
       - name: Publish APK release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v2.2.0
-          name: KillSuoji 2.2.0 Beta
+          tag_name: v${{ steps.version.outputs.number }}
+          name: KillSuoji ${{ steps.version.outputs.number }} Beta
           make_latest: true
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: ${{ steps.version.outputs.apk_name }}
