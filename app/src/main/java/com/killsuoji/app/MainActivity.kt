@@ -2,6 +2,7 @@ package com.killsuoji.app
 
 import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
@@ -19,6 +20,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.io.File
 
 private val KsuAccent = Color(0xFF4285F4)
 
@@ -27,6 +29,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent { KillSuojiApp() }
     }
+}
+
+private fun detectRoot(): Boolean {
+    val suPaths = listOf(
+        "/system/bin/su", "/system/xbin/su", "/sbin/su",
+        "/system/sbin/su", "/vendor/bin/su", "/su/bin/su",
+        "/data/adb/magisk", "/data/adb/ksu"
+    )
+    return suPaths.any { File(it).exists() } ||
+        (android.os.Build.TAGS?.contains("test-keys") == true)
 }
 
 @Composable
@@ -41,18 +53,20 @@ private fun KillSuojiApp() {
             topBar = { TopAppBar(title = "KillSuoji") },
             bottomBar = {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 28.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     NavItem("首页", tab == 0, Modifier.weight(1f)) { tab = 0 }
-                    NavItem("模块", tab == 1, Modifier.weight(1f)) { tab = 1 }
+                    NavItem("启动", tab == 1, Modifier.weight(1f)) { tab = 1 }
                     NavItem("设置", tab == 2, Modifier.weight(1f)) { tab = 2 }
                 }
             }
         ) { padding ->
             when (tab) {
                 0 -> HomeScreen(Modifier.padding(padding))
-                1 -> ModulesScreen(Modifier.padding(padding))
+                1 -> LaunchScreen(Modifier.padding(padding)) {
+                    Toast.makeText(context, "执行成功（界面演示）", Toast.LENGTH_SHORT).show()
+                }
                 else -> SettingsScreen(Modifier.padding(padding), dark) {
                     dark = it
                     prefs.edit().putBoolean("dark_theme", it).apply()
@@ -74,6 +88,7 @@ private fun NavItem(label: String, selected: Boolean, modifier: Modifier, onClic
 
 @Composable
 private fun HomeScreen(modifier: Modifier = Modifier) {
+    var rootDetected by remember { mutableStateOf(detectRoot()) }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(12.dp),
@@ -82,36 +97,38 @@ private fun HomeScreen(modifier: Modifier = Modifier) {
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("KernelSU", color = KsuAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (rootDetected) "已经检测到了 Root" else "无法启动！请获取 Root 的权限！",
+                        color = if (rootDetected) Color(0xFF269B61) else Color(0xFFD64A4A),
+                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold
+                    )
                     Text("KillSuoji", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.0.0 Beta", fontSize = 16.sp, color = Color(0xFF777777))
+                    Text("V2.1.0 Beta", fontSize = 16.sp, color = Color(0xFF777777))
                     Text("KernelSU · Miuix UI", fontSize = 14.sp)
                 }
             }
         }
-        item { InfoCard("应用状态", "纯界面模式") }
-        item { InfoCard("版本", "V2.0.0 Beta") }
+        item { InfoCard("应用状态", if (rootDetected) "已检测到 Root 环境" else "未检测到 Root") }
+        item { InfoCard("版本", "V2.1.0 Beta") }
         item { InfoCard("界面风格", "KernelSU Miuix") }
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("功能说明", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    Text("仅保留 KSU Miuix 风格界面，不包含 Root 获取、Root 授权、超级用户管理、模块安装或系统修改功能。",
-                        fontSize = 14.sp, color = Color(0xFF777777))
-                }
-            }
-        }
     }
 }
 
 @Composable
-private fun ModulesScreen(modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("模块", fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(10.dp))
-        Text("此纯界面版本不提供模块安装或管理功能。",
-            color = Color(0xFF777777))
+private fun LaunchScreen(modifier: Modifier = Modifier, onExecute: () -> Unit) {
+    Column(
+        modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onExecute)) {
+            Box(
+                Modifier.fillMaxWidth().padding(vertical = 20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("执行", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = KsuAccent)
+            }
+        }
     }
 }
 
@@ -136,7 +153,7 @@ private fun SettingsScreen(modifier: Modifier, dark: Boolean, onDarkChange: (Boo
             Text("关于", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             InfoCard("应用名称", "KillSuoji")
             Spacer(Modifier.height(8.dp))
-            InfoCard("版本", "V2.0.0 Beta")
+            InfoCard("版本", "V2.1.0 Beta")
             Spacer(Modifier.height(8.dp))
             InfoCard("UI 框架", "Miuix · KernelSU")
         }
