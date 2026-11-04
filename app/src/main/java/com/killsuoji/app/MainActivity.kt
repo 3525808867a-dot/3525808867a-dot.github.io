@@ -1,18 +1,18 @@
 package com.killsuoji.app
 
 import android.os.Bundle
-import android.view.KeyEvent
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,159 +20,142 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.concurrent.Executors
 
-private val KsuBg = Color(0xFFF5F6F8)
-private val KsuMint = Color(0xFFDDF5E8)
-private val KsuGreen = Color(0xFF269565)
-private val KsuInk = Color(0xFF20242A)
-private val KsuMuted = Color(0xFF737B86)
+private val KsuBlue = Color(0xFF4169E1)
+private val KsuBlueDark = Color(0xFFADC6FF)
 
 class MainActivity : ComponentActivity() {
-    private val executor = Executors.newSingleThreadExecutor()
-    private var rootAvailable by mutableStateOf(false)
-    private var volumeCount = 0
-    private var lastVolumeAt = 0L
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = android.graphics.Color.rgb(245, 246, 248)
-        window.navigationBarColor = android.graphics.Color.rgb(245, 246, 248)
-        window.decorView.systemUiVisibility = 0x00002000 or 0x00000010
-        detectRoot()
-        setContent {
-            KillSuojiUi(rootAvailable = rootAvailable, onExecute = { runSafeGuardCheck() })
-        }
-    }
-
-    private fun detectRoot() {
-        executor.execute {
-            val available = try {
-                val process = ProcessBuilder("su", "-c", "id").redirectErrorStream(true).start()
-                val output = process.inputStream.bufferedReader().readText()
-                process.waitFor() == 0 && output.contains("uid=0")
-            } catch (_: Exception) { false }
-            runOnUiThread { rootAvailable = available }
-        }
-    }
-
-    private fun runSafeGuardCheck() {
-        if (!rootAvailable) {
-            android.app.AlertDialog.Builder(this).setMessage("未获得 Root 权限，当前不可执行。").setPositiveButton("确定", null).show()
-            return
-        }
-        android.app.AlertDialog.Builder(this)
-            .setTitle("安全执行确认")
-            .setMessage("将检查 KillSuoji 自身运行状态。不会强制结束其他应用或系统进程。是否继续？")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("继续") { _, _ ->
-                android.app.AlertDialog.Builder(this)
-                    .setTitle("守护检查完成")
-                    .setMessage("KillSuoji 本应用状态检查已完成。")
-                    .setPositiveButton("关闭", null).show()
-            }.show()
-    }
-
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_VOLUME_UP && !event.isLongPress) {
-            val now = System.currentTimeMillis()
-            if (now - lastVolumeAt > 3500) volumeCount = 0
-            lastVolumeAt = now
-            volumeCount++
-            if (volumeCount >= 5) {
-                volumeCount = 0
-                Toast.makeText(this, "已检测到连续 5 次音量上键", Toast.LENGTH_LONG).show()
-            }
-        }
-        return super.dispatchKeyEvent(event)
-    }
-
-    override fun onDestroy() {
-        executor.shutdownNow()
-        super.onDestroy()
+        setContent { KillSuojiApp() }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun KillSuojiUi(rootAvailable: Boolean, onExecute: () -> Unit) {
-    var page by remember { mutableStateOf(0) }
-    MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = KsuGreen,
-            onPrimary = Color.White,
-            background = KsuBg,
-            surface = Color.White,
-            onSurface = KsuInk,
-            secondaryContainer = KsuMint
-        )
-    ) {
+private fun KillSuojiApp() {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var darkTheme by remember { mutableStateOf(false) }
+    var useDynamicColor by remember { mutableStateOf(true) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("killsuoji_v2", android.content.Context.MODE_PRIVATE)
+        darkTheme = prefs.getBoolean("dark_theme", false)
+        useDynamicColor = prefs.getBoolean("dynamic_color", true)
+    }
+    val colorScheme = when {
+        useDynamicColor && android.os.Build.VERSION.SDK_INT >= 31 && !darkTheme ->
+            androidx.compose.material3.dynamicLightColorScheme(context)
+        useDynamicColor && android.os.Build.VERSION.SDK_INT >= 31 && darkTheme ->
+            androidx.compose.material3.dynamicDarkColorScheme(context)
+        darkTheme -> darkColorScheme(primary = KsuBlueDark, secondary = KsuBlueDark)
+        else -> lightColorScheme(primary = KsuBlue, secondary = KsuBlue)
+    }
+
+    MaterialTheme(colorScheme = colorScheme) {
         Scaffold(
-            containerColor = KsuBg,
             topBar = {
                 TopAppBar(
-                    title = { Text("KillSuoji", fontWeight = FontWeight.Bold, color = KsuInk) },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = KsuBg)
+                    title = {
+                        Column {
+                            Text("KillSuoji", fontWeight = FontWeight.SemiBold)
+                            Text("V2.0.0 Beta", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { selectedTab = 2 }) {
+                            Icon(Icons.Default.Info, contentDescription = "关于")
+                        }
+                    }
                 )
             },
             bottomBar = {
-                NavigationBar(containerColor = Color.White, tonalElevation = 0.dp) {
+                NavigationBar {
                     NavigationBarItem(
-                        selected = page == 0, onClick = { page = 0 },
-                        icon = { Text("⌂", fontSize = 22.sp) }, label = { Text("主页") }
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                        label = { Text("首页") }
                     )
                     NavigationBarItem(
-                        selected = page == 1, onClick = { page = 1 },
-                        icon = { Text("▷", fontSize = 22.sp) }, label = { Text("启动") }
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                        label = { Text("模块") }
+                    )
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        label = { Text("设置") }
                     )
                 }
             }
         ) { padding ->
-            Column(
-                Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+            when (selectedTab) {
+                0 -> HomeScreen(Modifier.padding(padding))
+                1 -> ModulesScreen(Modifier.padding(padding))
+                else -> SettingsScreen(
+                    modifier = Modifier.padding(padding),
+                    darkTheme = darkTheme,
+                    dynamicColor = useDynamicColor,
+                    onDarkThemeChange = {
+                        darkTheme = it
+                        context.getSharedPreferences("killsuoji_v2", android.content.Context.MODE_PRIVATE)
+                            .edit().putBoolean("dark_theme", it).apply()
+                    },
+                    onDynamicColorChange = {
+                        useDynamicColor = it
+                        context.getSharedPreferences("killsuoji_v2", android.content.Context.MODE_PRIVATE)
+                            .edit().putBoolean("dynamic_color", it).apply()
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeScreen(modifier: Modifier = Modifier) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(28.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                if (page == 0) {
-                    KsuCard(container = KsuMint) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(color = KsuGreen, shape = CircleShape) {
-                                Text("KSU", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text("安全管理", color = KsuGreen, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        Spacer(Modifier.height(26.dp))
-                        Text("工作中", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = KsuInk)
-                        Text("V1.1.0 beta", color = KsuMuted, fontSize = 14.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text(if (rootAvailable) "✓" else "!", modifier = Modifier.align(Alignment.End), fontSize = 42.sp, color = KsuGreen)
+                Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Surface(color = MaterialTheme.colorScheme.primary, shape = CircleShape) {
+                        Text("KSU UI", color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        KsuCard(Modifier.weight(1f)) { Text("0", fontSize = 28.sp, fontWeight = FontWeight.Bold); Text("超级用户", color = KsuMuted) }
-                        KsuCard(Modifier.weight(1f)) { Text("0", fontSize = 28.sp, fontWeight = FontWeight.Bold); Text("模块", color = KsuMuted) }
-                    }
-                    KsuCard {
-                        InfoRow("应用版本", "V1.1.0 beta")
-                        HorizontalDivider(color = Color(0xFFE8EBEF))
-                        InfoRow("Root 权限", if (rootAvailable) "已获得" else "未获得")
-                        HorizontalDivider(color = Color(0xFFE8EBEF))
-                        InfoRow("运行环境", "Android")
-                    }
-                } else {
-                    KsuCard(container = KsuMint) {
-                        Text("◈  Root 权限状态", color = KsuMuted, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(20.dp))
-                        Text(if (rootAvailable) "已获得 root 权限，可执行" else "不可执行！", fontSize = 23.sp, fontWeight = FontWeight.Bold, color = if (rootAvailable) KsuGreen else Color(0xFFD34B4B))
-                        Text(if (rootAvailable) "Root 授权检测通过" else "尚未检测到可用的 su 授权", color = KsuMuted)
-                    }
-                    Button(onClick = onExecute, enabled = rootAvailable, modifier = Modifier.fillMaxWidth().height(58.dp), shape = RoundedCornerShape(18.dp)) {
-                        Text("▶   执行", fontSize = 18.sp)
-                    }
-                    KsuCard {
-                        Text("操作说明", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Text("1. 连续按下 5 次音量上键弹出提示\n2. 执行前检查 Root 授权状态\n3. 仅管理本应用自身状态，不强制结束其他应用或系统进程", color = KsuMuted, lineHeight = 24.sp)
-                    }
+                    Text("KillSuoji", style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("V2.0.0 Beta", style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("KernelSU 风格界面版本", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
+        }
+        item {
+            SectionTitle("应用状态")
+            InfoCard("版本", "V2.0.0 Beta")
+            InfoCard("界面来源", "KernelSU Manager 风格")
+            InfoCard("功能模式", "纯界面模式")
+        }
+        item {
+            Card(shape = RoundedCornerShape(22.dp)) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("功能说明", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text("本版本仅保留应用界面与主题展示，不包含 Root 获取、Root 授权、超级用户管理、模块安装或系统修改功能。",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
@@ -180,26 +163,92 @@ private fun KillSuojiUi(rootAvailable: Boolean, onExecute: () -> Unit) {
 }
 
 @Composable
-private fun KsuCard(
-    modifier: Modifier = Modifier,
-    container: Color = Color.White,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = container,
-        shape = RoundedCornerShape(22.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE5E9ED)),
-        shadowElevation = 1.dp
+private fun ModulesScreen(modifier: Modifier = Modifier) {
+    Column(
+        modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(Modifier.padding(18.dp), content = content)
+        Icon(Icons.AutoMirrored.Filled.List, contentDescription = null,
+            modifier = Modifier.size(52.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(16.dp))
+        Text("模块", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        Text("此版本不提供模块安装、启用、停用或管理功能。",
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun InfoRow(title: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(title, color = KsuInk)
-        Text(value, color = KsuMuted)
+private fun SettingsScreen(
+    modifier: Modifier = Modifier,
+    darkTheme: Boolean,
+    dynamicColor: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+    onDynamicColorChange: (Boolean) -> Unit
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item { Text("外观", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        item {
+            Card(shape = RoundedCornerShape(20.dp)) {
+                Column {
+                    SettingsSwitch("深色主题", "使用深色配色", darkTheme, onDarkThemeChange)
+                    HorizontalDivider()
+                    SettingsSwitch("动态取色", "跟随系统壁纸颜色（Android 12+）",
+                        dynamicColor, onDynamicColorChange)
+                }
+            }
+        }
+        item {
+            Text("关于", style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
+        }
+        item { InfoCard("应用名称", "KillSuoji") }
+        item { InfoCard("版本", "V2.0.0 Beta") }
+        item { InfoCard("界面项目", "KernelSU Manager") }
+        item {
+            Text("本应用为独立的纯界面版本，不连接 KernelSU 内核，也不执行 Root 操作。",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 4.dp))
+        }
+    }
+}
+
+@Composable
+private fun SettingsSwitch(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(subtitle) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = onCheckedChange) }
+    )
+}
+
+@Composable
+private fun SectionTitle(title: String) {
+    Text(title, style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
+}
+
+@Composable
+private fun InfoCard(title: String, value: String) {
+    Card(shape = RoundedCornerShape(18.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, fontWeight = FontWeight.Medium)
+        }
     }
 }
