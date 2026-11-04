@@ -141,7 +141,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         color = if (!rootDetected) Color(0xFF777777) else Color(0xFFB42318),
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
-                    Text("KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                    Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     Text("V2.3.0 Beta", fontSize = 16.sp, color = Color(0xFF777777))
                 }
             }
