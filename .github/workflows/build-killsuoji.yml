@@ -22,7 +22,7 @@ jobs:
       - name: Read app version
         id: version
         run: |
-          VERSION_NAME=$(sed -n 's/.*versionName = "\\([^"]*\\)".*/\\1/p' app/build.gradle.kts)
+          VERSION_NAME=$(grep 'versionName' app/build.gradle.kts | cut -d '"' -f2)
           VERSION_NUMBER="${VERSION_NAME%% *}"
           APK_NAME="${VERSION_NUMBER}.apk"
           echo "number=$VERSION_NUMBER" >> "$GITHUB_OUTPUT"
