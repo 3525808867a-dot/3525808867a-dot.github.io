@@ -136,20 +136,20 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  }
  document.getElementById('force-available').addEventListener('click',e=>{
    e.preventDefault();e.stopPropagation();
-   renderUpdate('available','开发者手动设置：允许下载。自动检测已关闭，下载状态只由 ✓ / × 按钮调整。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+currentVersion.split(' ')[0]+'/'+currentVersion.split(' ')[0]+'.apk',true);
+   renderUpdate('available','允许下载','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+currentVersion.split(' ')[0]+'/'+currentVersion.split(' ')[0]+'.apk',true);
  });
  document.getElementById('force-unavailable').addEventListener('click',e=>{
    e.preventDefault();e.stopPropagation();
-   renderUpdate('unavailable','开发者手动设置：禁止下载。自动检测已关闭，下载状态只由 ✓ / × 按钮调整。',null,true);
+   renderUpdate('unavailable','禁止下载',null,true);
  });
  syncAutoCheckButton();
  if(!autoCheckEnabled){
    let savedMode=null;
    try{savedMode=localStorage.getItem(downloadStateKey);}catch(e){}
    if(savedMode==='available'){
-     renderUpdate('available','开发者手动设置：允许下载。自动检测已关闭，下载状态只由 ✓ / × 按钮调整。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+currentVersion.split(' ')[0]+'/'+currentVersion.split(' ')[0]+'.apk');
+     renderUpdate('available','允许下载','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+currentVersion.split(' ')[0]+'/'+currentVersion.split(' ')[0]+'.apk');
    }else if(savedMode==='unavailable'||savedMode==='undetectable'){
-     renderUpdate('unavailable','开发者手动设置：禁止下载。自动检测已关闭，下载状态只由 ✓ / × 按钮调整。');
+     renderUpdate('unavailable','禁止下载');
    }
  }
  loadHistoryVersions();
