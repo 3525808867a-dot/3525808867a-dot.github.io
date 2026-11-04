@@ -23,7 +23,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
 <body><main>
 <header class="top" id="dev-trigger" title="KillSuoji"><img class="logo" src="app/src/main/res/drawable-nodpi/killsuoji_foreground.webp" alt="KillSuoji 软件图标"><div>KillSuoji<small>ANDROID TOOL · DOWNLOAD CENTER</small></div></header>
 <h1>KillSuoji 下载中心</h1><p class="sub">一款针对锁机软件的工具，通过 Root 从而拦截锁机。</p>
-<section class="hero error" id="update-card"><div class="dev-toggle-row" id="dev-toggle-row" hidden><button class="dev-toggle" id="force-available" type="button" title="恢复可下载状态">✓</button><button class="dev-toggle danger" id="force-unavailable" type="button" title="设为不可下载">×</button></div><span class="tag">KILLSUOJI · ANDROID</span><div class="update-heading"><h2>检查更新</h2><button class="auto-check-toggle" id="auto-check-toggle" type="button">关闭自动检测更新</button></div><p id="update-summary">V2.3.6 Beta 已发布，点击下方按钮下载</p><div class="check" id="update-icon">×</div></section>
+<section class="hero error" id="update-card"><div class="dev-toggle-row" id="dev-toggle-row" hidden><button class="dev-toggle" id="force-available" type="button" title="恢复可下载状态">✓</button><button class="dev-toggle danger" id="force-unavailable" type="button" title="设为不可下载">×</button></div><span class="tag">KILLSUOJI · ANDROID</span><div class="update-heading"><h2>检查更新</h2><button class="auto-check-toggle" id="auto-check-toggle" type="button">关闭自动检测更新</button></div><p id="update-summary">V2.3.6 Beta 正在配置固定签名，安装包尚未发布</p><div class="check" id="update-icon">×</div></section>
 <div class="action-row">
 <a class="download-btn" aria-disabled="true">下载</a>
 <a class="action-btn source-btn" href="https://github.com/3525808867a-dot/3525808867a-dot.github.io/tree/main" target="_blank" rel="noopener noreferrer">查看源码</a>
@@ -87,6 +87,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
    old.forEach(x=>{const row=document.createElement('div');row.className='history-item';const label=document.createElement('strong');label.textContent='V'+x.v+' Beta';const link=document.createElement('a');link.href=x.url;link.download=x.v+'.apk';link.textContent='下载';row.append(label,link);list.append(row);});
   }catch(e){
    const known=[
+    {v:'2.3.5',file:'2.3.5.apk'},
     {v:'2.3.4',file:'2.3.4.apk'},
     {v:'2.3.3',file:'2.3.3.apk'},
     {v:'2.3.2',file:'2.3.2.apk'},
