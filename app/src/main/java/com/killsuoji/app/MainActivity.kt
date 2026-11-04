@@ -24,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URL
@@ -189,12 +188,11 @@ private fun UpdateCard() {
     var downloading by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        while (true) {
-            try {
-                update = withContext(Dispatchers.IO) { fetchLatestUpdate() }
-                message = if (update == null) "当前已是最新版本" else "发现新版本 V" + update!!.first + "，点击即可下载安装"
-            } catch (_: Exception) { message = "暂时无法检查更新，请检查网络" }
-            delay(6 * 60 * 60 * 1000L)
+        try {
+            update = withContext(Dispatchers.IO) { fetchLatestUpdate() }
+            message = if (update == null) "当前已是最新版本" else "发现新版本 V" + update!!.first + "，点击即可下载安装"
+        } catch (_: Exception) {
+            message = "暂时无法检查更新，请检查网络"
         }
     }
 
