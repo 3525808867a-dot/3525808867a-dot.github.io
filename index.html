@@ -59,7 +59,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
      const sourceRes=await fetch(sourceUrl,{cache:'no-store'});
      if(!sourceRes.ok)throw new Error('无法读取仓库版本文件（HTTP '+sourceRes.status+'）');
      const gradleText=await sourceRes.text();
-     const match=gradleText.match(/versionName\\s*=\\s*"([^"]+)"/);
+     const match=gradleText.match(/versionName\s*=\s*"([^"]+)"/);
      if(!match)throw new Error('仓库中没有找到 versionName');
      const repoVersion=match[1];
      const tag='v'+repoVersion.split(' ')[0];
