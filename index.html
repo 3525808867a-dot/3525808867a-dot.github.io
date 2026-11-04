@@ -24,11 +24,11 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
 <body><main>
 <header class="top" id="dev-trigger" title="KillSuoji"><img class="logo" src="app/src/main/res/drawable-nodpi/killsuoji_foreground.webp" alt="KillSuoji 软件图标"><div>KillSuoji<small>ANDROID TOOL · DOWNLOAD CENTER</small></div></header>
 <h1>KillSuoji 下载中心</h1><p class="sub">一款针对锁机软件的工具，通过 Root 从而拦截锁机。</p>
-<section class="hero error" id="update-card"><div class="dev-toggle-row" id="dev-toggle-row" hidden><button class="dev-toggle" id="force-available" type="button" title="恢复可下载状态">✓</button><button class="dev-toggle danger" id="force-unavailable" type="button" title="设为不可下载">×</button></div><span class="tag">KILLSUOJI · ANDROID</span><h2>检查更新</h2><p id="update-summary">V2.1.0 Beta（Miuix 版）正在修复构建，暂时不可下载</p><div class="check" id="update-icon">×</div></section>
+<section class="hero error" id="update-card"><div class="dev-toggle-row" id="dev-toggle-row" hidden><button class="dev-toggle" id="force-available" type="button" title="恢复可下载状态">✓</button><button class="dev-toggle danger" id="force-unavailable" type="button" title="设为不可下载">×</button></div><span class="tag">KILLSUOJI · ANDROID</span><h2>检查更新</h2><p id="update-summary">V2.2.0 Beta（Miuix 版）已发布，点击下方按钮下载</p><div class="check" id="update-icon">×</div></section>
 <a class="download-btn" aria-disabled="true">下载</a>
 <section class="card" id="dev-panel" hidden aria-live="polite"><div class="row"><strong>开发者模式 · 构建进度</strong><span class="version" id="build-state">正在连接…</span></div><p class="muted" id="build-detail">正在获取 GitHub Actions 最新构建状态</p><div style="height:8px;background:#edf1ee;border-radius:99px;overflow:hidden"><div id="build-bar" style="height:100%;width:4%;background:#20a464;border-radius:99px;transition:width .25s"></div></div><p class="muted" id="build-time" style="font-size:12px;margin-bottom:0">每秒自动刷新</p></section>
 
-<section class="card"><strong>版本说明</strong><p class="muted">说明暂时无法显示</p></section>
+<section class="card"><strong>版本说明 · V2.2.0 Beta</strong><ul><li>更新应用版本号至 V2.2.0 Beta。</li><li>优化 Root 权限检测及启动入口显示。</li><li>启动/停止状态会保存在本机，重新打开软件后仍然保留。</li><li>更新首页状态文字与状态颜色显示。</li></ul><p class="muted" style="font-size:12px">提示：运行状态为应用内显示状态，不会执行系统修改。</p></section>
 <p class="foot">KillSuoji · 专属下载中心</p>
 </main>
 <script>
@@ -37,7 +37,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  const updateCard=document.getElementById('update-card'),updateSummary=document.getElementById('update-summary'),updateIcon=document.getElementById('update-icon'),download=document.querySelector('.download-btn');
  const updateTitle=updateCard.querySelector('h2');
  const downloadStateKey='killsuoji-download-state';
- const currentVersion='2.1.0 Beta';
+ const currentVersion='2.2.0 Beta';
  function renderUpdate(mode,message,downloadUrl,save=false){
    const available=mode==='available';
    if(save){try{localStorage.setItem(downloadStateKey,mode);}catch(e){}}
@@ -79,7 +79,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
      renderUpdate('undetectable','无法读取仓库最新版本：'+err.message);
    }
  }
- document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('available','开发者手动切换为可下载显示；自动检测结果会在下次检查时更新。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.1.0/app-debug.apk');});
+ document.getElementById('force-available').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('available','开发者手动切换为可下载显示；自动检测结果会在下次检查时更新。','https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.2.0/app-debug.apk');});
  document.getElementById('force-unavailable').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();renderUpdate('undetectable','开发者手动切换为无法检测显示；自动检测结果会在下次检查时更新。');});
  checkRepositoryVersion();
  setInterval(checkRepositoryVersion,30000);
