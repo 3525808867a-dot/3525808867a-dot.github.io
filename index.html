@@ -23,7 +23,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
 <body><main>
 <header class="top" id="dev-trigger" title="KillSuoji"><img class="logo" src="app/src/main/res/drawable-nodpi/killsuoji_foreground.webp" alt="KillSuoji 软件图标"><div>KillSuoji<small>ANDROID TOOL · DOWNLOAD CENTER</small></div></header>
 <h1>KillSuoji 下载中心</h1><p class="sub">一款针对锁机软件的工具，通过 Root 从而拦截锁机。</p>
-<section class="hero error" id="update-card"><div class="dev-toggle-row" id="dev-toggle-row" hidden><button class="dev-toggle" id="force-available" type="button" title="恢复可下载状态">✓</button><button class="dev-toggle danger" id="force-unavailable" type="button" title="设为不可下载">×</button></div><span class="tag">KILLSUOJI · ANDROID</span><div class="update-heading"><h2>检查更新</h2><button class="auto-check-toggle" id="auto-check-toggle" type="button">关闭自动检测更新</button></div><p id="update-summary">V2.3.0 Beta 已发布，点击下方按钮下载</p><div class="check" id="update-icon">×</div></section>
+<section class="hero error" id="update-card"><div class="dev-toggle-row" id="dev-toggle-row" hidden><button class="dev-toggle" id="force-available" type="button" title="恢复可下载状态">✓</button><button class="dev-toggle danger" id="force-unavailable" type="button" title="设为不可下载">×</button></div><span class="tag">KILLSUOJI · ANDROID</span><div class="update-heading"><h2>检查更新</h2><button class="auto-check-toggle" id="auto-check-toggle" type="button">关闭自动检测更新</button></div><p id="update-summary">V2.3.1 Beta 已发布，点击下方按钮下载</p><div class="check" id="update-icon">×</div></section>
 <div class="action-row">
 <a class="download-btn" aria-disabled="true">下载</a>
 <a class="action-btn source-btn" href="https://github.com/3525808867a-dot/3525808867a-dot.github.io/tree/main" target="_blank" rel="noopener noreferrer">查看源码</a>
@@ -32,7 +32,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
 <section class="card" id="history-card"><strong>历史版本下载</strong><p class="muted" id="history-status">正在获取历史版本…</p><div id="history-list"></div></section>
 <section class="card" id="dev-panel" hidden aria-live="polite"><div class="row"><strong>开发者模式 · 构建进度</strong><span class="version" id="build-state">正在连接…</span></div><p class="muted" id="build-detail">正在获取 GitHub Actions 最新构建状态</p><div style="height:8px;background:#edf1ee;border-radius:99px;overflow:hidden"><div id="build-bar" style="height:100%;width:4%;background:#20a464;border-radius:99px;transition:width .25s"></div></div><p class="muted" id="build-time" style="font-size:12px;margin-bottom:0">每秒自动刷新</p></section>
 
-<section class="card"><strong>版本说明 · V2.3.0 Beta</strong><ul><li>更新应用版本号至 V2.3.0 Beta。</li><li>精简主页与设置页面，移除指定状态及 UI 框架说明。</li><li>启动/停止状态会保存在本机，重新打开软件后仍然保留。</li><li>保留 Root 检测及执行/停止状态切换功能。</li></ul><p class="muted" style="font-size:12px">（当前为beta测试版，如有bug请联系作者）</p><p class="muted" style="font-size:12px">提示：运行状态为应用内显示状态，不会执行系统修改。</p></section>
+<section class="card"><strong>版本说明 · V2.3.1 Beta</strong><ul><li>更新应用版本号至 V2.3.1 Beta。</li><li>精简主页与设置页面，移除指定状态及 UI 框架说明。</li><li>启动/停止状态会保存在本机，重新打开软件后仍然保留。</li><li>保留 Root 检测及执行/停止状态切换功能。</li></ul><p class="muted" style="font-size:12px">（当前为beta测试版，如有bug请联系作者）</p><p class="muted" style="font-size:12px">提示：运行状态为应用内显示状态，不会执行系统修改。</p></section>
 <p class="foot">KillSuoji · 专属下载中心</p>
 </main>
 <script>
@@ -43,7 +43,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  const downloadStateKey='killsuoji-download-state';
  const autoCheckKey='killsuoji-auto-check-enabled-v2';
  const autoCheckButton=document.getElementById('auto-check-toggle');
- const currentVersion='2.3.0 Beta';
+ const currentVersion='2.3.1 Beta';
  let autoCheckEnabled=true,autoCheckTimer=null;
  try{autoCheckEnabled=localStorage.getItem(autoCheckKey)!=='false';}catch(e){}
  function syncAutoCheckButton(){
@@ -87,7 +87,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
    old.forEach(x=>{const row=document.createElement('div');row.className='history-item';const label=document.createElement('strong');label.textContent='V'+x.v+' Beta';const link=document.createElement('a');link.href=x.url;link.download=x.v+'.apk';link.textContent='下载';row.append(label,link);list.append(row);});
   }catch(e){
    const known=[
-    {v:'2.3.0',file:'2.3.0.apk'},
+    {v:'2.3.1',file:'2.3.1.apk'},
     {v:'2.1.0',file:'app-debug.apk'},
     {v:'2.0.0',file:'app-debug.apk'},
     {v:'1.1.0',file:'app-debug.apk'},
@@ -123,7 +123,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
        if(asset)assetUrl=asset.browser_download_url;
      }
      // GitHub API may return 403 because of anonymous rate limits; use the verified release asset URL as fallback.
-     if(!assetUrl&&repoVersion==='2.3.0 Beta')assetUrl='https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.3.0/2.3.0.apk';
+     if(!assetUrl&&repoVersion==='2.3.1 Beta')assetUrl='https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.3.1/2.3.1.apk';
      if(repoVersion===currentVersion&&assetUrl){
        renderUpdate('available','仓库最新版本：V'+repoVersion+'。已检测到对应安装包，可以下载。',assetUrl);
      }else if(repoVersion===currentVersion){
