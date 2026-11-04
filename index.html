@@ -119,7 +119,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
      const releases=await res.json();
      const published=releases.map(release=>{
        const version=(release.tag_name||'').replace(/^v/,'');
-       if(release.draft||!/^\\d+\\.\\d+\\.\\d+$/.test(version))return null;
+       if(release.draft||!/^\d+\.\d+\.\d+$/.test(version))return null;
        const asset=(release.assets||[]).find(item=>item.name===version+'.apk')||(release.assets||[]).find(item=>item.name==='app-debug.apk');
        return asset?{version,url:asset.browser_download_url,created:release.published_at||release.created_at}:null;
      }).filter(Boolean).sort((a,b)=>b.version.localeCompare(a.version,undefined,{numeric:true}));
