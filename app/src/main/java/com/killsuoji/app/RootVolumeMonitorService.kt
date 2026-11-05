@@ -45,13 +45,14 @@ class RootVolumeMonitorService : Service() {
         while (monitoring) {
             var process: Process? = null
             try {
-                process = ProcessBuilder("su", "-c", "exec /system/bin/getevent -lt")
+                val activeProcess = ProcessBuilder("su", "-c", "exec /system/bin/getevent -lt")
                     .redirectErrorStream(true)
                     .start()
-                rootProcess = process
+                process = activeProcess
+                rootProcess = activeProcess
                 updateNotification("Root 全局音量下键监听运行中")
 
-                BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                BufferedReader(InputStreamReader(activeProcess.inputStream)).use { reader ->
                     while (monitoring) {
                         val line = reader.readLine() ?: break
                         if (isVolumeDownKeyPress(line)) {
@@ -72,7 +73,7 @@ class RootVolumeMonitorService : Service() {
                 }
 
                 if (monitoring) {
-                    val exitCode = try { process.waitFor() } catch (_: InterruptedException) { -1 }
+                    val exitCode = try { activeProcess.waitFor() } catch (_: InterruptedException) { -1 }
                     updateNotification("Root 按键监听进程退出（$exitCode），正在重新连接")
                 }
             } catch (e: Exception) {
