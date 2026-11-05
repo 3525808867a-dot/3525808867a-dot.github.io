@@ -448,11 +448,11 @@ private fun LaunchScreen(
                 "读取日志超时，请检查 Root 授权。"
             } else {
                 val output = process.inputStream.bufferedReader().use { it.readText() }
-                if (process.exitValue() != 0) "读取日志失败（退出码：\${process.exitValue()}）\n$output"
+                if (process.exitValue() != 0) "读取日志失败（退出码：${process.exitValue()}）\n$output"
                 else output.ifBlank { "日志文件为空，尚未记录启动信息。" }
             }
         } catch (e: Exception) {
-            "读取日志异常：\${e.message ?: "未知错误"}"
+            "读取日志异常：${e.message ?: "未知错误"}"
         }
     }
 
@@ -475,7 +475,7 @@ private fun LaunchScreen(
                     isWorking -> "工作状态运行中。"
                     else -> "模块已安装并启用，可以执行"
                 }
-                Text("$status（白名单 \${whitelist.size} 个）", color = Color(0xFF68736D), fontSize = 14.sp)
+                Text("$status（白名单 ${whitelist.size} 个）", color = Color(0xFF68736D), fontSize = 14.sp)
             }
         }
         Card(modifier = Modifier.fillMaxWidth().clickable(enabled = moduleCheckComplete && moduleInstalled, onClick = onToggle)) {
