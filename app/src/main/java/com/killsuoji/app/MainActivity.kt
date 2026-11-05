@@ -646,7 +646,7 @@ private suspend fun runOneClickRepair(onProgress: (String) -> Unit) {
 
     onProgress("检查 killsuoji必要模块和 watchdog.sh……")
     val moduleCheck = withContext(Dispatchers.IO) {
-        runRepairRootCommand("MOD=/data/adb/modules/killsuoji_overlay; test -f \"\$MOD/module.prop\" && test -f \"\$MOD/watchdog.sh\" && test ! -f \"\$MOD/disable\"")
+        runRepairRootCommand("MOD=/data/adb/modules/killsuoji_overlay; test -f \"\${'$'}MOD/module.prop\" && test -f \"\${'$'}MOD/watchdog.sh\" && test ! -f \"\${'$'}MOD/disable\"")
     }
     if (moduleCheck.first != 0) {
         onProgress("无法自动修复：未检测到已启用且包含 watchdog.sh 的 killsuoji必要模块，请先在 Root 管理器中安装并启用模块。")
@@ -659,20 +659,20 @@ private suspend fun runOneClickRepair(onProgress: (String) -> Unit) {
         runRepairRootCommand("""
             MOD=/data/adb/modules/killsuoji_overlay
             STATE=/data/adb/killsuoji_overlay
-            mkdir -p "$STATE" || exit 10
-            touch "$STATE/enabled"
-            chmod 700 "$MOD/watchdog.sh"
-            if [ -f "$STATE/watchdog.pid" ]; then
-              PID=$(cat "$STATE/watchdog.pid" 2>/dev/null)
-              if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+            mkdir -p "${'$'}STATE" || exit 10
+            touch "${'$'}STATE/enabled"
+            chmod 700 "${'$'}MOD/watchdog.sh"
+            if [ -f "${'$'}STATE/watchdog.pid" ]; then
+              PID=$(cat "${'$'}STATE/watchdog.pid" 2>/dev/null)
+              if [ -n "${'$'}PID" ] && kill -0 "${'$'}PID" 2>/dev/null; then
                 echo WATCHDOG_ALREADY_RUNNING
               else
-                rm -f "$STATE/watchdog.pid"
-                nohup sh "$MOD/watchdog.sh" >/dev/null 2>&1 </dev/null &
+                rm -f "${'$'}STATE/watchdog.pid"
+                nohup sh "${'$'}MOD/watchdog.sh" >/dev/null 2>&1 </dev/null &
                 echo WATCHDOG_RESTART_REQUESTED
               fi
             else
-              nohup sh "$MOD/watchdog.sh" >/dev/null 2>&1 </dev/null &
+              nohup sh "${'$'}MOD/watchdog.sh" >/dev/null 2>&1 </dev/null &
               echo WATCHDOG_START_REQUESTED
             fi
         """.trimIndent())
