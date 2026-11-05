@@ -26,7 +26,7 @@ start_root_window() {
   fi
   APP_VERSION=$(dumpsys package com.killsuoji.app 2>/dev/null | grep -m 1 -E 'versionName=|versionCode=' | tr '\n' ' ')
   APK_HASH=$(sha256sum "$APK_PATH" 2>/dev/null | cut -d' ' -f1)
-  log "Starting RootWindowMain; build=2.6.3-PR-06; $APP_VERSION APK=$APK_PATH SHA256=$APK_HASH"
+  log "Starting RootWindowMain; build=3.1.3-overlay-bitmap-single-thread; $APP_VERSION APK=$APK_PATH SHA256=$APK_HASH"
   # Remove stale native window instances before starting the current installed APK.
   OLD_PIDS=$(ps -A -o PID,ARGS 2>/dev/null | grep '[c]om.killsuoji.app.RootWindowMain' | awk '{print $1}')
   for OLD_PID in $OLD_PIDS; do
