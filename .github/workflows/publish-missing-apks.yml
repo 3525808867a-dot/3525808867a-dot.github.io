@@ -1,0 +1,60 @@
+name: Publish missing APKs to GitHub Releases
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "downloads/*.apk"
+      - ".github/workflows/publish-missing-apks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-missing-apks
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Publish APKs that are not yet attached to Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          count=0
+          for apk in downloads/*.apk; do
+            filename="${apk##*/}"
+            if [[ ! "$filename" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?\.apk$ ]]; then
+              echo "Skip non-release APK: $filename"
+              continue
+            fi
+
+            version="${filename%.apk}"
+            tag="v$version"
+
+            if gh release view "$tag" --json assets --jq '.assets[].name' >/tmp/release-assets.txt 2>/dev/null; then
+              if grep -Fxq "$filename" /tmp/release-assets.txt; then
+                echo "Already uploaded: $tag / $filename"
+                continue
+              fi
+              echo "Uploading missing asset to existing release: $tag"
+              gh release upload "$tag" "$apk"
+            else
+              echo "Creating release and uploading: $tag"
+              gh release create "$tag" "$apk" \
+                --title "KillSuoji V$version" \
+                --target "$GITHUB_SHA" \
+                --notes "KillSuoji APK archive: V$version. This release preserves the APK that was stored in the repository downloads directory."
+            fi
+            count=$((count + 1))
+          done
+          echo "Newly published APK assets/releases: $count"
