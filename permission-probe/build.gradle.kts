@@ -21,3 +21,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 }
+
+dependencies {
+    compileOnly("org.robolectric:android-all:16-robolectric-13921718")
+}
