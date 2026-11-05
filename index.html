@@ -23,7 +23,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
 <body><main>
 <header class="top" id="dev-trigger" title="KillSuoji"><img class="logo" src="app/src/main/res/drawable-nodpi/killsuoji_foreground.webp" alt="KillSuoji 软件图标"><div>KillSuoji<small>ANDROID TOOL · DOWNLOAD CENTER</small></div></header>
 <h1>KillSuoji 下载中心</h1><p class="sub">一款针对锁机软件的工具，通过 Root 从而拦截锁机。</p>
-<section class="hero error" id="update-card"><div class="dev-toggle-row" id="dev-toggle-row" hidden><button class="dev-toggle" id="force-available" type="button" title="恢复可下载状态">✓</button><button class="dev-toggle danger" id="force-unavailable" type="button" title="设为不可下载">×</button></div><span class="tag">KILLSUOJI · ANDROID</span><div class="update-heading"><h2>检查更新</h2><button class="auto-check-toggle" id="auto-check-toggle" type="button">关闭自动检测更新</button></div><p id="update-summary">V2.4.8 beta 正在构建，安装包尚未发布</p><div class="check" id="update-icon">×</div></section>
+<section class="hero error" id="update-card"><div class="dev-toggle-row" id="dev-toggle-row" hidden><button class="dev-toggle" id="force-available" type="button" title="恢复可下载状态">✓</button><button class="dev-toggle danger" id="force-unavailable" type="button" title="设为不可下载">×</button></div><span class="tag">KILLSUOJI · ANDROID</span><div class="update-heading"><h2>检查更新</h2><button class="auto-check-toggle" id="auto-check-toggle" type="button">关闭自动检测更新</button></div><p id="update-summary">V2.5.0 正式版已发布，可以下载</p><div class="check" id="update-icon">×</div></section>
 <div class="action-row">
 <a class="download-btn" aria-disabled="true">下载</a>
 <a class="action-btn source-btn" href="https://github.com/3525808867a-dot/3525808867a-dot.github.io/tree/main" target="_blank" rel="noopener noreferrer">查看源码</a>
@@ -32,7 +32,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
 <section class="card" id="history-card"><details id="history-details"><summary style="cursor:pointer;font-weight:750;list-style:none;display:flex;justify-content:space-between;align-items:center"><span>历史版本下载</span><span class="muted" style="font-size:13px">点击展开 / 收起</span></summary><p class="muted" id="history-status">正在获取历史版本…</p><div id="history-list"></div></details></section>
 <section class="card" id="dev-panel" hidden aria-live="polite"><div class="row"><strong>开发者模式 · 构建进度</strong><span class="version" id="build-state">正在连接…</span></div><p class="muted" id="build-detail">正在获取 GitHub Actions 最新构建状态</p><div style="height:8px;background:#edf1ee;border-radius:99px;overflow:hidden"><div id="build-bar" style="height:100%;width:4%;background:#20a464;border-radius:99px;transition:width .25s"></div></div><p class="muted" id="build-time" style="font-size:12px;margin-bottom:0">每秒自动刷新</p></section>
 
-<section class="card"><strong>版本说明 · V2.4.8 beta</strong><ul><li>更新应用版本号至 V2.4.8 beta，并沿用固定签名机制。</li><li>精简主页与设置页面，移除指定状态及 UI 框架说明。</li><li>启动/停止状态会保存在本机，重新打开软件后仍然保留。</li><li>修复全局音量下键识别：同时识别 KEY_VOLUMEDOWN 与 Linux 键码 0x0072；3 秒内按下 5 次后由 Root 执行启动脚本。</li></ul><p class="muted" style="font-size:12px">（当前为beta测试版，如有bug请联系作者）</p><p class="muted" style="font-size:12px">提示：需授予 Root 权限并保持工作服务运行；不同厂商系统仍需实机验证。</p></section>
+<section class="card"><strong>版本说明 · V2.5.0 正式版</strong><ul><li>修复 KillSuoji 在后台时连续按五下音量下键无法触发的问题。</li><li>触发后先通过 Root 清理前台和后台第三方应用进程，再执行启动脚本跳转。</li><li>保护 Android 系统关键组件及 KillSuoji 自身，避免误停止系统服务。</li><li>正式版沿用固定签名机制，可直接覆盖安装兼容签名的旧版本。</li></ul><p class="muted" style="font-size:12px">提示：需授予 Root 权限并保持工作服务运行；后台触发和进程清理仍需在实际设备上验证。</p></section>
 <p class="foot">KillSuoji · 专属下载中心</p>
 </main>
 <script>
@@ -43,7 +43,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  const downloadStateKey='killsuoji-download-state';
  const autoCheckKey='killsuoji-auto-check-enabled-v2';
  const autoCheckButton=document.getElementById('auto-check-toggle');
- const currentVersion='2.4.8 beta';
+ const currentVersion='2.5.0';
  let autoCheckEnabled=true,autoCheckTimer=null;
  try{autoCheckEnabled=localStorage.getItem(autoCheckKey)!=='false';}catch(e){}
  function syncAutoCheckButton(){
@@ -110,12 +110,12 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
      const res=await fetch('./latest.json?_='+Date.now(),{cache:'no-store',headers:{'Accept':'application/json'}});
      if(!res.ok)throw new Error('版本信息 HTTP '+res.status);
      const info=await res.json();
-     if(info.status!=='available'){renderUpdate('unavailable','V2.4.8 beta 正在构建，安装包尚未发布。');return;}
+     if(info.status!=='available'){renderUpdate('unavailable',(info.version||'当前版本')+' 正在准备发布，安装包暂不可下载。');return;}
      const match=(info.version||'').match(/(\d+\.\d+\.\d+)/);
      if(!match||typeof info.apk!=='string'||!/^https:\/\//.test(info.apk))throw new Error('版本信息格式无效');
      const version=match[1],sourceVersion=currentVersion.split(' ')[0];
      const note=version===sourceVersion?'':'（当前源码版本 V'+sourceVersion+'，下载网站提供 V'+version+'）';
-     renderUpdate('available','已读取可下载版本：V'+version+' Beta。'+note+' 点击“下载”即可获取安装包。',info.apk);
+     const beta=/beta/i.test(info.version||'');\n     renderUpdate('available','已读取可下载版本：V'+version+(beta?' Beta':' 正式版')+'。'+note+' 点击“下载”即可获取安装包。',info.apk);
    }catch(err){
      renderUpdate('undetectable','无法读取下载网站版本信息：'+err.message+'；请稍后重试。');
    }
