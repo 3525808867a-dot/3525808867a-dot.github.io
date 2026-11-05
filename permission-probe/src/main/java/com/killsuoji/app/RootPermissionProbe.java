@@ -1,12 +1,13 @@
 package com.killsuoji.app;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
 
-public final class RootPermissionProbe {
+public final class RootPermissionProbe extends Activity {
     private static final String TAG = "KillSuojiPermissionProbe";
 
     private RootPermissionProbe() {}
