@@ -3,7 +3,7 @@ name: Build KillSuoji V3.1.1 overlay hotfix
 
 on:
   push:
-    branches: [root-surface-prototype, release/v3.1.1-formal]
+    branches: [root-surface-prototype, release/v3.1.0-formal, hotfix/v3.1.1-overlay-init]
     paths:
       - "app/**"
       - "module/**"
