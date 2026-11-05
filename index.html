@@ -88,32 +88,23 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  async function loadHistoryVersions(){
   const status=document.getElementById('history-status'),list=document.getElementById('history-list');
   list.replaceChildren();
-  status.textContent='正在自动读取 GitHub 历史版本…';
+  status.textContent='正在读取历史版本…';
   try{
-   const res=await fetch('https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases?per_page=100',{cache:'no-store',headers:{'Accept':'application/vnd.github+json'}});
-   if(!res.ok)throw new Error('GitHub API HTTP '+res.status);
-   const releases=await res.json();
-   const versions=[];
-   releases.forEach(release=>{
-    const tag=(release.tag_name||'').replace(/^v/i,'');
-    if(release.draft||/PR/i.test(tag))return;
-    const match=tag.match(/^(\d+)\.(\d+)\.(\d+)(?:[-.]?(beta))?$/i);
-    if(!match)return;
-    (release.assets||[]).filter(asset=>/\.apk$/i.test(asset.name||'')).forEach(asset=>{
-     versions.push({major:Number(match[1]),minor:Number(match[2]),patch:Number(match[3]),pre:!!match[4]||!!release.prerelease,version:match[1]+'.'+match[2]+'.'+match[3],url:asset.browser_download_url,file:asset.name});
-    });
-   });
-   versions.sort((a,b)=>b.major-a.major||b.minor-a.minor||b.patch-a.patch||Number(a.pre)-Number(b.pre));
+   const res=await fetch('./versions.json?_='+Date.now(),{cache:'no-store',headers:{'Accept':'application/json'}});
+   if(!res.ok)throw new Error('历史版本清单 HTTP '+res.status);
+   const data=await res.json();
+   const versions=(Array.isArray(data.versions)?data.versions:[]).filter(item=>item&&/^\d+\.\d+\.\d+(?:-beta)?$/i.test(item.version)&&typeof item.file==='string'&&/\.apk$/i.test(item.file));
    if(!versions.length){status.textContent='暂未找到可下载的历史版本。';return;}
+   versions.sort((a,b)=>{const x=a.version.match(/\d+/g).map(Number),y=b.version.match(/\d+/g).map(Number);return y[0]-x[0]||y[1]-x[1]||y[2]-x[2]||Number(/beta/i.test(a.version))-Number(/beta/i.test(b.version));});
    versions.forEach(item=>{
     const row=document.createElement('div');row.className='history-item';
-    const label=document.createElement('strong');label.textContent='V'+item.version+(item.pre?' Beta':'');
-    const link=document.createElement('a');link.href=item.url;link.download=item.file;link.textContent='下载';
+    const label=document.createElement('strong');label.textContent='V'+item.version.replace(/-beta/i,'')+(/beta/i.test(item.version)?' Beta':' 正式版');
+    const link=document.createElement('a');link.href='https://raw.githubusercontent.com/3525808867a-dot/3525808867a-dot.github.io/main/downloads/'+encodeURIComponent(item.file);link.download=item.file;link.textContent='下载';
     row.append(label,link);list.append(row);
    });
-   status.textContent='历史版本列表（已自动同步 GitHub Releases）：';
+   status.textContent='历史版本列表（已同步仓库 downloads 目录）：';
   }catch(err){
-   status.textContent='历史版本读取失败：'+err.message+'。请稍后刷新重试。';
+   status.textContent='历史版本读取失败：'+err.message+'。请刷新重试。';
   }
  }
  async function checkRepositoryVersion(){
@@ -132,7 +123,8 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
        renderUpdate('unavailable','已检测到版本：V'+info.version.replace(/^V/i,'')+'（PR 调试构建），此版本仅供识别，不提供下载。');
        return;
      }
-     const releaseLabel=/beta/i.test(info.version||'')?' beta':' 正式版';\n     renderUpdate('available','已读取可下载版本：V'+version+releaseLabel+'。'+note+' 点击“下载”即可获取安装包。',info.apk);
+     const releaseLabel=/beta/i.test(info.version||'')?' beta':' 正式版';
+     renderUpdate('available','已读取可下载版本：V'+version+releaseLabel+'。'+note+' 点击“下载”即可获取安装包。',info.apk);
    }catch(err){
      renderUpdate('undetectable','无法读取下载网站版本信息：'+err.message+'；请稍后重试。');
    }
