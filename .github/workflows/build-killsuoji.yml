@@ -79,7 +79,7 @@ jobs:
               data = {}
           data.update({
               "name": "KillSuoji Android 应用",
-              "version": "V2.4.1 Beta",
+              "version": "V2.4.1 beta",
               "version_code": 14,
               "status": "available",
               "updated_at": date.today().isoformat(),
@@ -91,7 +91,7 @@ jobs:
                   "工作中连续按 5 次音量下键，返回 KillSuoji 并提示拦截成功。",
                   "Root 权限监听全局音量下键，无需辅助功能授权，点击停止即可结束监听。"
               ],
-              "notice": "V2.4.1 Beta 安装包构建并发布后即可下载。"
+              "notice": "V2.4.1 beta 安装包构建并发布后即可下载。"
           })
           with open(path, "w", encoding="utf-8") as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
@@ -106,6 +106,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.number }}
-          name: KillSuoji ${{ steps.version.outputs.number }} Beta
+          name: KillSuoji ${{ steps.version.outputs.number }} beta
           make_latest: true
           files: ${{ steps.version.outputs.apk_name }}
