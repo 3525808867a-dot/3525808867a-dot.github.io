@@ -115,4 +115,5 @@ jobs:
           tag_name: v${{ steps.version.outputs.number }}
           name: KillSuoji ${{ steps.version.outputs.number }} beta
           make_latest: true
+          overwrite_files: true
           files: ${{ steps.version.outputs.apk_name }}
