@@ -140,6 +140,11 @@ private fun KillSuojiApp() {
                 1 -> if (rootDetected) LaunchScreen(Modifier.padding(padding), isWorking) {
                     val next = !isWorking
                     if (next) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                            Toast.makeText(context, "请先允许 KillSuoji 显示悬浮窗，然后返回点击执行", Toast.LENGTH_LONG).show()
+                            context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + context.packageName)))
+                            return@LaunchScreen
+                        }
                         try {
                             context.startForegroundService(Intent(context, RootVolumeMonitorService::class.java))
                             isWorking = true
@@ -200,7 +205,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.5.1 正式版", fontSize = 13.sp, color = Color(0xFF68736D))
+                    Text("V2.5.2 正式版", fontSize = 13.sp, color = Color(0xFF68736D))
                     
                 }
             }
