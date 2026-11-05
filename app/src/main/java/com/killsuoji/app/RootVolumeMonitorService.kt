@@ -70,6 +70,7 @@ class RootVolumeMonitorService : Service() {
         try {
             val command = """
                 STATE_DIR=/data/adb/killsuoji_overlay
+                echo "[KILLSUOJI] UI requested STOP" >> /data/adb/killsuoji_overlay/root-window.log
                 rm -f "${'$'}STATE_DIR/enabled"
                 for PIDFILE in "${'$'}STATE_DIR/watchdog.pid" "${'$'}STATE_DIR/root-window.pid"; do
                   if [ -f "${'$'}PIDFILE" ]; then
@@ -80,6 +81,7 @@ class RootVolumeMonitorService : Service() {
                 done
             """.trimIndent()
             ProcessBuilder("su", "-c", command).start().waitFor(3, TimeUnit.SECONDS)
+            ProcessBuilder("su", "-c", "echo '[KILLSUOJI] STOP completed' >> /data/adb/killsuoji_overlay/root-window.log").start().waitFor(2, TimeUnit.SECONDS)
         } catch (_: Exception) { }
     }
 
