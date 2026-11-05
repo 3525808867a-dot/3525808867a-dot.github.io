@@ -147,7 +147,7 @@ class RootVolumeMonitorService : Service() {
                 val encoded = Base64.encodeToString(whitelistText.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
                 val rootCommand = """
                     echo '$encoded' | base64 -d > /data/local/tmp/killsuoji_whitelist.txt || exit 20
-                    pm list packages -3 | cut -d: -f2 | grep -vxFf /data/local/tmp/killsuoji_whitelist.txt | xargs -r -n 1 am force-stop
+                    pm list packages -3 | cut -d: -f2 | grep -vxFf /data/local/tmp/killsuoji_whitelist.txt | xargs -r -P 8 -n 1 sh -c 'am force-stop "$1" >/dev/null 2>&1' sh
                     rm -f /data/local/tmp/killsuoji_whitelist.txt
                     sh /data/local/tmp/launch_killapp.sh
                 """.trimIndent()
