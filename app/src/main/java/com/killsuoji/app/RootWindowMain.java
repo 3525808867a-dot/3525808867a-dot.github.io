@@ -32,7 +32,6 @@ import java.io.StringWriter;
  */
 public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
-    private static volatile boolean starting = false;
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
     private static final String BUILD_ID = "3.1.0-formal";
     private static SurfaceControl monitorSurface;
@@ -298,8 +297,6 @@ public final class RootWindowMain {
     }
 
     private static void dispatchServiceAction(String action) {
-        if (starting) return;
-        starting = true;
         writeLog("Dispatching service action=" + action, null);
         new Thread(() -> {
             try {
@@ -309,7 +306,6 @@ public final class RootWindowMain {
                 int exitCode = p.waitFor();
                 writeLog("Service dispatch exit=" + exitCode + " action=" + action, null);
             } catch (Throwable t) { writeLog("Unable to dispatch service action=" + action, t); }
-            finally { starting = false; }
         }, "KillSuojiNativeOverlayAction").start();
     }
 }
