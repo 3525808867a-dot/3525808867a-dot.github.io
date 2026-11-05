@@ -3,6 +3,7 @@ package com.killsuoji.app
 import android.app.DownloadManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.pm.ApplicationInfo
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -30,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URL
+import androidx.compose.material3.OutlinedTextField
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
@@ -124,6 +126,8 @@ private fun KillSuojiApp() {
         val discovered = withContext(Dispatchers.IO) {
             val pm = context.packageManager
             pm.getInstalledApplications(PackageManager.GET_META_DATA).mapNotNull { info ->
+                // 系统应用及系统更新应用不进入白名单列表；它们默认不参与进程清理。
+                if ((info.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0) return@mapNotNull null
                 val pkg = info.packageName
                 val label = try { pm.getApplicationLabel(info).toString() } catch (_: Exception) { pkg }
                 val suki = label.contains("SukiSU", ignoreCase = true) ||
@@ -259,7 +263,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("V2.5.5 正式版", fontSize = 13.sp, color = Color(0xFF68736D))
+                        Text("V2.5.6 正式版", fontSize = 13.sp, color = Color(0xFF68736D))
                     }
                     
                 }
@@ -415,6 +419,7 @@ private fun LaunchScreen(
     installedApps: List<InstalledApp>, whitelist: Set<String>, onWhitelistChange: (String, Boolean) -> Unit,
     onToggle: () -> Unit
 ) {
+    var appSearch by remember { mutableStateOf("") }
     Column(modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -440,9 +445,19 @@ private fun LaunchScreen(
             }
         }
         Text("添加应用白名单", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-        Text("勾选的应用不会被结束，已勾选应用始终置顶。", fontSize = 12.sp, color = Color(0xFF777777))
+        Text("勾选的应用不会被结束。", fontSize = 12.sp, color = Color(0xFF777777))
+        OutlinedTextField(
+            value = appSearch,
+            onValueChange = { appSearch = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { androidx.compose.material3.Text("输入应用名称或包名搜索") }
+        )
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            val ordered = installedApps.sortedWith(compareByDescending<InstalledApp> { it.packageName in whitelist }.thenBy { it.label.lowercase() })
+            val keyword = appSearch.trim()
+            val ordered = installedApps
+                .filter { keyword.isEmpty() || it.label.contains(keyword, ignoreCase = true) || it.packageName.contains(keyword, ignoreCase = true) }
+                .sortedBy { it.label.lowercase() }
             items(ordered, key = { it.packageName }) { app ->
                 val checked = app.packageName in whitelist
                 Card(modifier = Modifier.fillMaxWidth().clickable {
