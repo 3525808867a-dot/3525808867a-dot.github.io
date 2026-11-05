@@ -307,4 +307,3 @@ class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileServ
         qsTile?.updateTile()
     }
 }
-}
