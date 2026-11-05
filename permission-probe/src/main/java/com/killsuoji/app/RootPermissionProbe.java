@@ -53,7 +53,7 @@ public final class RootPermissionProbe extends Activity {
 
         run.setOnClickListener(v -> {
             run.setEnabled(false);
-            resultView.setText("正在请求 Root 授权并检测……");
+            resultView.setText("正在请求 Root 授权……\\n等待探测进程启动");
             new Thread(() -> {
                 StringBuilder output = new StringBuilder();
                 int exit = -1;
@@ -64,22 +64,39 @@ public final class RootPermissionProbe extends Activity {
                             + RootPermissionProbe.class.getName();
                     java.lang.Process process = new ProcessBuilder("su", "-c", command)
                             .redirectErrorStream(true).start();
-                    try (BufferedReader reader = new BufferedReader(
-                            new InputStreamReader(process.getInputStream()))) {
-                        String line;
-                        while ((line = reader.readLine()) != null) {
-                            output.append(line).append('\n');
+                    runOnUiThread(() -> resultView.append("\\nRoot 进程已启动，正在接收实时日志：\\n"));
+                    Thread readerThread = new Thread(() -> {
+                        try (BufferedReader reader = new BufferedReader(
+                                new InputStreamReader(process.getInputStream()))) {
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                output.append(line).append('\\n');
+                                final String visibleLine = line;
+                                runOnUiThread(() -> resultView.append(visibleLine + "\\n"));
+                            }
+                        } catch (Throwable readError) {
+                            final String message = "读取日志失败：" + readError;
+                            runOnUiThread(() -> resultView.append(message + "\\n"));
                         }
+                    }, "KillSuojiProbeLogReader");
+                    readerThread.start();
+                    boolean finished = process.waitFor(35, java.util.concurrent.TimeUnit.SECONDS);
+                    if (!finished) {
+                        process.destroyForcibly();
+                        output.append("探测超过 35 秒，已终止卡住的探测进程。\\n");
+                        runOnUiThread(() -> resultView.append("\\n超时：35 秒没有结束，已终止探测进程。"));
+                    } else {
+                        exit = process.exitValue();
                     }
-                    exit = process.waitFor();
+                    readerThread.join(2000);
                 } catch (Throwable e) {
                     output.append("检测启动失败：").append(Log.getStackTraceString(e));
+                    final String message = "检测启动失败：" + e;
+                    runOnUiThread(() -> resultView.append(message));
                 }
-                final String text = output.length() == 0
-                        ? "没有收到探测程序输出。退出码：" + exit
-                        : output + "\n进程退出码：" + exit;
+                final int finalExit = exit;
                 runOnUiThread(() -> {
-                    resultView.setText(text);
+                    resultView.append("\\n进程退出码：" + finalExit);
                     run.setEnabled(true);
                 });
             }).start();
