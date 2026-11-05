@@ -1,0 +1,36 @@
+name: Package KillSuoji V3.0.0 beta source ZIP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/package-v3.0.0beta-source.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  package-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Archive the exact V3.0.0 beta source commit
+        env:
+          SOURCE_COMMIT: f022888ccb9b876b7bd5288e87ef4c97077afa4d
+        run: |
+          git fetch origin "$SOURCE_COMMIT"
+          git archive --format=zip --prefix=KillSuoji-3.0.0beta/ "$SOURCE_COMMIT" \
+            app module permission-probe root-surface-prototype \
+            build.gradle.kts settings.gradle.kts gradle.properties \
+            README.md KILLSUOJI_README.md \
+            -o /tmp/KillSuoji-3.0.0beta-source.zip
+          mkdir -p downloads
+          cp /tmp/KillSuoji-3.0.0beta-source.zip downloads/3.0.0beta-source.zip
+          git rm .github/workflows/package-v3.0.0beta-source.yml
+          git add downloads/3.0.0beta-source.zip
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Upload KillSuoji V3.0.0 beta source ZIP"
+          git push origin HEAD:main
