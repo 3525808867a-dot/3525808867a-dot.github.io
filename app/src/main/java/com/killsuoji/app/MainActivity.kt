@@ -2,6 +2,8 @@ package com.killsuoji.app
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -15,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +42,8 @@ import kotlin.concurrent.thread
 private val KsuAccent = Color(0xFF4285F4)
 private val StatusRed = Color(0xFFFFE1E1)
 private val StatusGreen = Color(0xFFD5F7E1)
+
+private data class InstalledApp(val packageName: String, val label: String, val isSukiSU: Boolean = false)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,8 +118,29 @@ private fun KillSuojiApp() {
     var isWorking by remember { mutableStateOf(prefs.getBoolean("is_working", false)) }
     var moduleInstalled by remember { mutableStateOf(false) }
     var moduleCheckComplete by remember { mutableStateOf(false) }
+    val installedApps = remember { mutableStateListOf<InstalledApp>() }
+    var whitelist by remember { mutableStateOf(prefs.getStringSet("app_whitelist", null)?.toSet() ?: emptySet()) }
 
     LaunchedEffect(Unit) {
+        val discovered = withContext(Dispatchers.IO) {
+            val pm = context.packageManager
+            pm.getInstalledApplications(PackageManager.GET_META_DATA).mapNotNull { info ->
+                val pkg = info.packageName
+                val label = try { pm.getApplicationLabel(info).toString() } catch (_: Exception) { pkg }
+                val suki = label.contains("SukiSU", ignoreCase = true) ||
+                    pkg.contains("sukisu", ignoreCase = true) || pkg == "me.weishu.kernelsu"
+                val userApp = (info.flags and ApplicationInfo.FLAG_SYSTEM) == 0
+                if (userApp || suki || pkg == context.packageName) InstalledApp(pkg, label, suki) else null
+            }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
+        }
+        installedApps.clear()
+        installedApps.addAll(discovered)
+        if (!prefs.contains("app_whitelist")) {
+            whitelist = (setOf(context.packageName) + discovered.filter { it.isSukiSU }.map { it.packageName }).toSet()
+            prefs.edit().putStringSet("app_whitelist", whitelist).apply()
+        } else {
+            whitelist = (prefs.getStringSet("app_whitelist", emptySet())?.toSet() ?: emptySet()) + context.packageName
+        }
         rootDetected = withContext(Dispatchers.IO) { detectRootPermission() }
         moduleInstalled = withContext(Dispatchers.IO) { detectOverlayModule() }
         moduleCheckComplete = true
@@ -147,7 +173,15 @@ private fun KillSuojiApp() {
         ) { padding ->
             when (tab) {
                 0 -> HomeScreen(Modifier.padding(padding), rootDetected, isWorking)
-                1 -> if (rootDetected) LaunchScreen(Modifier.padding(padding), isWorking, moduleInstalled, moduleCheckComplete) {
+                1 -> if (rootDetected) LaunchScreen(
+                    Modifier.padding(padding), isWorking, moduleInstalled, moduleCheckComplete,
+                    installedApps = installedApps.toList(), whitelist = whitelist,
+                    onWhitelistChange = { pkg, checked ->
+                        whitelist = if (checked) whitelist + pkg else whitelist - pkg
+                        whitelist = whitelist + context.packageName
+                        prefs.edit().putStringSet("app_whitelist", whitelist).apply()
+                    }
+                ) {
                     val next = !isWorking
                     if (next) {
                         if (!moduleInstalled) {
@@ -227,9 +261,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("V2.5.4 正式版", fontSize = 13.sp, color = Color(0xFF68736D))
-                        Text("正式版 · 需安装 SukiSU 常驻模块 1.0.0 beta",
-                            fontSize = 12.sp, color = Color(0xFFD32F2F), fontWeight = FontWeight.SemiBold)
+                        Text("V2.5.5 正式版", fontSize = 13.sp, color = Color(0xFF68736D))
                     }
                     
                 }
@@ -380,33 +412,55 @@ private fun UpdateCard() {
 }
 
 @Composable
-private fun LaunchScreen(modifier: Modifier = Modifier, isWorking: Boolean, moduleInstalled: Boolean, moduleCheckComplete: Boolean, onToggle: () -> Unit) {
-    Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+private fun LaunchScreen(
+    modifier: Modifier = Modifier, isWorking: Boolean, moduleInstalled: Boolean, moduleCheckComplete: Boolean,
+    installedApps: List<InstalledApp>, whitelist: Set<String>, onWhitelistChange: (String, Boolean) -> Unit,
+    onToggle: () -> Unit
+) {
+    Column(modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Card(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Root 悬浮窗启动", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (!moduleCheckComplete) "正在检查 SukiSU 常驻模块安装状态…"
-                    else if (!moduleInstalled) "未检测到已安装并启用的 SukiSU 常驻模块。请先安装 KillSuoji Overlay Keeper 1.0.0 beta，安装完成后返回此页面即可启动。"
-                    else if (isWorking) "工作状态运行中。点击固定在底部“首页”文字位置的 killzuoji 悬浮窗，即可由 Root 执行启动脚本。"
-                    else "模块已安装并启用，可以点击执行开启工作状态并显示 killzuoji 悬浮窗。",
-                    color = Color(0xFF68736D), fontSize = 14.sp
-                )
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("控制台", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                val status = when {
+                    !moduleCheckComplete -> "正在检查 SukiSU 常驻模块安装状态…"
+                    !moduleInstalled -> "未检测到已安装并启用的 SukiSU 常驻模块。请先安装模块。"
+                    isWorking -> "工作状态运行中。"
+                    else -> "模块已安装并启用，可以执行"
+                }
+                Text("$status（白名单 ${whitelist.size} 个）", color = Color(0xFF68736D), fontSize = 14.sp)
             }
         }
-        Spacer(Modifier.height(16.dp))
         Card(modifier = Modifier.fillMaxWidth().clickable(enabled = moduleCheckComplete && moduleInstalled, onClick = onToggle)) {
-            Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    when {
-                        !moduleCheckComplete -> "正在检查模块…"
-                        !moduleInstalled -> "请先安装模块"
-                        isWorking -> "停止"
-                        else -> "执行"
-                    },
-                    fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
-                    color = if (isWorking) Color(0xFFB42318) else if (moduleInstalled) KsuAccent else Color(0xFF999999)
-                )
+            Box(Modifier.fillMaxWidth().padding(vertical = 17.dp), contentAlignment = Alignment.Center) {
+                Text(when {
+                    !moduleCheckComplete -> "正在检查模块…"
+                    !moduleInstalled -> "请先安装模块"
+                    isWorking -> "停止"
+                    else -> "执行"
+                }, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
+                    color = if (isWorking) Color(0xFFB42318) else if (moduleInstalled) KsuAccent else Color(0xFF999999))
+            }
+        }
+        Text("添加应用白名单", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Text("勾选的应用不会被结束，已勾选应用始终置顶。", fontSize = 12.sp, color = Color(0xFF777777))
+        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            val ordered = installedApps.sortedWith(compareByDescending<InstalledApp> { it.packageName in whitelist }.thenBy { it.label.lowercase() })
+            items(ordered, key = { it.packageName }) { app ->
+                val checked = app.packageName in whitelist
+                Card(modifier = Modifier.fillMaxWidth().clickable {
+                    if (app.packageName != "com.killsuoji.app") onWhitelistChange(app.packageName, !checked)
+                }) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(app.label, fontSize = 14.sp, fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal)
+                            Text(app.packageName, fontSize = 10.sp, color = Color(0xFF888888))
+                        }
+                        Box(Modifier.size(24.dp).background(if (checked) KsuAccent else Color.Transparent, RoundedCornerShape(4.dp)),
+                            contentAlignment = Alignment.Center) {
+                            if (checked) Text("✓", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
     }
