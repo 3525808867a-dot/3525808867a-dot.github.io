@@ -10,8 +10,8 @@ android {
         applicationId = "com.killsuoji.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 49
-        versionName = "3.1.2"
+        versionCode = 50
+        versionName = "3.1.3"
     }
     val stableKeystorePath = System.getenv("KILLSUOJI_KEYSTORE_FILE")
     if (!stableKeystorePath.isNullOrBlank()) {
