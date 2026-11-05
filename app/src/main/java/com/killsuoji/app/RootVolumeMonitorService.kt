@@ -43,14 +43,14 @@ class RootVolumeMonitorService : Service() {
         val command = """
             MODDIR=/data/adb/modules/killsuoji_overlay
             STATE_DIR=/data/adb/killsuoji_overlay
-            mkdir -p "$STATE_DIR" || exit 1
-            if [ ! -f "$MODDIR/watchdog.sh" ]; then
+            mkdir -p "${'$'}STATE_DIR" || exit 1
+            if [ ! -f "${'$'}MODDIR/watchdog.sh" ]; then
               echo MODULE_MISSING
               exit 2
             fi
-            touch "$STATE_DIR/enabled"
-            chmod 700 "$MODDIR/watchdog.sh"
-            nohup sh "$MODDIR/watchdog.sh" >/dev/null 2>&1 </dev/null &
+            touch "${'$'}STATE_DIR/enabled"
+            chmod 700 "${'$'}MODDIR/watchdog.sh"
+            nohup sh "${'$'}MODDIR/watchdog.sh" >/dev/null 2>&1 </dev/null &
         """.trimIndent()
         try {
             val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
@@ -70,12 +70,12 @@ class RootVolumeMonitorService : Service() {
         try {
             val command = """
                 STATE_DIR=/data/adb/killsuoji_overlay
-                rm -f "$STATE_DIR/enabled"
-                for PIDFILE in "$STATE_DIR/watchdog.pid" "$STATE_DIR/root-window.pid"; do
-                  if [ -f "$PIDFILE" ]; then
-                    PID=$(cat "$PIDFILE" 2>/dev/null)
-                    [ -n "$PID" ] && kill "$PID" 2>/dev/null
-                    rm -f "$PIDFILE"
+                rm -f "${'$'}STATE_DIR/enabled"
+                for PIDFILE in "${'$'}STATE_DIR/watchdog.pid" "${'$'}STATE_DIR/root-window.pid"; do
+                  if [ -f "${'$'}PIDFILE" ]; then
+                    PID=$(cat "${'$'}PIDFILE" 2>/dev/null)
+                    [ -n "${'$'}PID" ] && kill "${'$'}PID" 2>/dev/null
+                    rm -f "${'$'}PIDFILE"
                   fi
                 done
             """.trimIndent()
