@@ -123,7 +123,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
        renderUpdate('unavailable','已检测到版本：V'+info.version.replace(/^V/i,'')+'（PR 调试构建），此版本仅供识别，不提供下载。');
        return;
      }
-     renderUpdate('available','已读取可下载版本：V'+version+' 正式版。'+note+' 点击“下载”即可获取安装包。',info.apk);
+     const releaseLabel=/beta/i.test(info.version||'')?' beta':' 正式版';\n     renderUpdate('available','已读取可下载版本：V'+version+releaseLabel+'。'+note+' 点击“下载”即可获取安装包。',info.apk);
    }catch(err){
      renderUpdate('undetectable','无法读取下载网站版本信息：'+err.message+'；请稍后重试。');
    }
