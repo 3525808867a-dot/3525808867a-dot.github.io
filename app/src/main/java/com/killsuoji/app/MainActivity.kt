@@ -457,7 +457,7 @@ private fun LaunchScreen(
             val keyword = appSearch.trim()
             val ordered = installedApps
                 .filter { keyword.isEmpty() || it.label.contains(keyword, ignoreCase = true) || it.packageName.contains(keyword, ignoreCase = true) }
-                .sortedBy { it.label.lowercase() }
+                .sortedWith(compareByDescending<InstalledApp> { it.packageName in whitelist }.thenBy { it.label.lowercase() })
             items(ordered, key = { it.packageName }) { app ->
                 val checked = app.packageName in whitelist
                 Card(modifier = Modifier.fillMaxWidth().clickable {
