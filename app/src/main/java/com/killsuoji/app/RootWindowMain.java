@@ -32,7 +32,7 @@ public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
     private static volatile boolean starting = false;
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
-    private static final String BUILD_ID = "2.6.3-PR-06-no-typeface";
+    private static final String BUILD_ID = "2.6.3-PR-07-no-text-render";
 
     private static synchronized void writeLog(String message, Throwable error) {
         StringBuilder line = new StringBuilder();
@@ -99,32 +99,32 @@ public final class RootWindowMain {
             int top = Math.max(0, dm.heightPixels - (int) (34f * density) - height);
 
             SurfaceControl.Builder builder = new SurfaceControl.Builder();
-            call(builder, "setName", "KillSuoji-PR05-Button");
+            call(builder, "setName", "KillSuoji-PR07-Button");
             call(builder, "setParent", monitorSurface);
             call(builder, "setBufferSize", width, height);
             call(builder, "setFormat", PixelFormat.TRANSLUCENT);
             writeLog("Building SurfaceControl button", null);
             buttonControl = builder.build();
+            writeLog("SurfaceControl button built", null);
             buttonSurface = new Surface(buttonControl);
+            writeLog("Button Surface created", null);
 
             Canvas canvas = buttonSurface.lockCanvas(null);
+            writeLog("Button canvas locked", null);
             try {
                 canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR);
                 Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
                 bg.setColor(Color.BLACK);
                 canvas.drawRoundRect(0, 0, width, height, 4f * density, 4f * density, bg);
-                Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
-                text.setColor(Color.WHITE);
-                text.setTextSize(12f * density);
-                // Do not call Typeface APIs here. Some vendor builds crash inside
-                // Typeface.DEFAULT_BOLD / Typeface.create when the base font is null.
-                // A Paint with no explicit typeface uses the platform default.
-                text.setTextAlign(Paint.Align.CENTER);
-                Paint.FontMetrics fm = text.getFontMetrics();
-                float baseline = height / 2f - (fm.ascent + fm.descent) / 2f;
-                canvas.drawText("killzuoji", width / 2f, baseline, text);
+                // Avoid all text rendering on vendor builds with broken font initialization.
+                Paint marker = new Paint(Paint.ANTI_ALIAS_FLAG);
+                marker.setColor(Color.WHITE);
+                canvas.drawCircle(width / 2f, height / 2f, 5f * density, marker);
+                marker.setColor(Color.rgb(66, 133, 244));
+                canvas.drawCircle(width / 2f, height / 2f, 2.5f * density, marker);
             } finally {
                 buttonSurface.unlockCanvasAndPost(canvas);
+                writeLog("Button canvas posted", null);
             }
 
             SurfaceControl.Transaction tx = new SurfaceControl.Transaction();
@@ -133,6 +133,7 @@ public final class RootWindowMain {
             call(tx, "setLayer", buttonControl, Integer.MAX_VALUE - 2);
             call(tx, "show", buttonControl);
             call(tx, "apply");
+            writeLog("SurfaceControl transaction applied", null);
             call(tx, "close");
             writeLog("Native SurfaceControl button attached; monitor active at " + left + "," + top + " size " + width + "x" + height, null);
 
