@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import org.json.JSONObject
 import java.net.URL
 import androidx.compose.material3.OutlinedTextField
@@ -115,46 +117,58 @@ private fun KillSuojiApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("killsuoji_v2", Context.MODE_PRIVATE) }
     var tab by remember { mutableIntStateOf(0) }
-    var rootDetected by remember { mutableStateOf(false) }
     var isWorking by remember { mutableStateOf(prefs.getBoolean("is_working", false)) }
-    var moduleInstalled by remember { mutableStateOf(false) }
+    // 先读取上次已确认的状态，避免进入首页时等待 Root 检测才显示状态。
+    var rootDetected by remember { mutableStateOf(prefs.getBoolean("root_detected_cache", prefs.getBoolean("is_working", false))) }
+    var moduleInstalled by remember { mutableStateOf(prefs.getBoolean("module_installed_cache", prefs.getBoolean("is_working", false))) }
     var moduleCheckComplete by remember { mutableStateOf(false) }
     val installedApps = remember { mutableStateListOf<InstalledApp>() }
     var whitelist by remember { mutableStateOf(prefs.getStringSet("app_whitelist", null)?.toSet() ?: emptySet()) }
 
     LaunchedEffect(Unit) {
-        val discovered = withContext(Dispatchers.IO) {
-            val pm = context.packageManager
-            pm.getInstalledApplications(PackageManager.GET_META_DATA).mapNotNull { info ->
-                // 系统应用及系统更新应用不进入白名单列表；它们默认不参与进程清理。
-                if ((info.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0) return@mapNotNull null
-                val pkg = info.packageName
-                val label = try { pm.getApplicationLabel(info).toString() } catch (_: Exception) { pkg }
-                val suki = label.contains("SukiSU", ignoreCase = true) ||
-                    pkg.contains("sukisu", ignoreCase = true) || pkg == "me.weishu.kernelsu"
-                InstalledApp(pkg, label, suki)
-            }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
+        // 三项启动检查并行执行：应用列表不再阻塞 Root 和模块状态识别。
+        coroutineScope {
+            val appsTask = async(Dispatchers.IO) {
+                val pm = context.packageManager
+                pm.getInstalledApplications(PackageManager.GET_META_DATA).mapNotNull { info ->
+                    if ((info.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0) return@mapNotNull null
+                    val pkg = info.packageName
+                    val label = try { pm.getApplicationLabel(info).toString() } catch (_: Exception) { pkg }
+                    val suki = label.contains("SukiSU", ignoreCase = true) ||
+                        pkg.contains("sukisu", ignoreCase = true) || pkg == "me.weishu.kernelsu"
+                    InstalledApp(pkg, label, suki)
+                }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
+            }
+            val rootTask = async(Dispatchers.IO) { detectRootPermission() }
+            val moduleTask = async(Dispatchers.IO) { detectOverlayModule() }
+
+            val discovered = appsTask.await()
+            installedApps.clear()
+            installedApps.addAll(discovered)
+            if (!prefs.contains("app_whitelist")) {
+                whitelist = (setOf(context.packageName) + discovered.filter { it.isSukiSU }.map { it.packageName }).toSet()
+                prefs.edit().putStringSet("app_whitelist", whitelist.toMutableSet()).apply()
+            } else {
+                whitelist = (prefs.getStringSet("app_whitelist", emptySet())?.toSet() ?: emptySet()) + context.packageName
+            }
+
+            rootDetected = rootTask.await()
+            prefs.edit().putBoolean("root_detected_cache", rootDetected).apply()
+
+            moduleInstalled = moduleTask.await()
+            prefs.edit().putBoolean("module_installed_cache", moduleInstalled).apply()
+            moduleCheckComplete = true
+
+            if (!moduleInstalled && prefs.getBoolean("is_working", false)) {
+                prefs.edit().putBoolean("is_working", false).apply()
+                isWorking = false
+                context.stopService(Intent(context, RootVolumeMonitorService::class.java))
+            } else if (moduleInstalled && prefs.getBoolean("is_working", false)) {
+                try { context.startForegroundService(Intent(context, RootVolumeMonitorService::class.java)) }
+                catch (_: Exception) { }
+            }
+            if (!rootDetected) tab = 0
         }
-        installedApps.clear()
-        installedApps.addAll(discovered)
-        if (!prefs.contains("app_whitelist")) {
-            whitelist = (setOf(context.packageName) + discovered.filter { it.isSukiSU }.map { it.packageName }).toSet()
-            prefs.edit().putStringSet("app_whitelist", whitelist.toMutableSet()).apply()
-        } else {
-            whitelist = (prefs.getStringSet("app_whitelist", emptySet())?.toSet() ?: emptySet()) + context.packageName
-        }
-        rootDetected = withContext(Dispatchers.IO) { detectRootPermission() }
-        moduleInstalled = withContext(Dispatchers.IO) { detectOverlayModule() }
-        moduleCheckComplete = true
-        if (!moduleInstalled && prefs.getBoolean("is_working", false)) {
-            prefs.edit().putBoolean("is_working", false).apply()
-            isWorking = false
-            context.stopService(Intent(context, RootVolumeMonitorService::class.java))
-        } else if (moduleInstalled && prefs.getBoolean("is_working", false)) {
-            try { context.startForegroundService(Intent(context, RootVolumeMonitorService::class.java)) }
-            catch (_: Exception) { }
-        }
-        if (!rootDetected) tab = 0
     }
 
     MiuixTheme {
