@@ -2,6 +2,9 @@ package com.killsuoji.app;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.RectF;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
@@ -21,6 +24,9 @@ import android.view.Surface;
 import android.view.SurfaceControl;
 import android.view.WindowManager;
 import android.util.Log;
+import android.util.Base64;
+import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Method;
 import java.io.FileWriter;
 import java.io.PrintWriter;
@@ -34,7 +40,8 @@ public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
     private static final String SAFETY_FILE = "/data/adb/killsuoji_overlay/safety_mode";
-    private static final String BUILD_ID = "3.1.2-overlay-text-async";
+    private static final String BUILD_ID = "3.1.3-overlay-bitmap-single-thread";
+    private static Bitmap stopLabel, cancelLabel, safetyLabel;
     private static SurfaceControl monitorSurface;
     private static SurfaceControl buttonControl;
     private static Surface buttonSurface;
@@ -97,6 +104,7 @@ public final class RootWindowMain {
             Object activityThread = activityThreadClass.getMethod("systemMain").invoke(null);
             Context context = (Context) activityThreadClass.getMethod("getSystemContext").invoke(activityThread);
             writeLog("System context acquired", null);
+            loadOverlayLabels(context);
             InputManager inputManager = (InputManager) context.getSystemService(Context.INPUT_SERVICE);
             writeLog("Creating gesture input monitor", null);
             monitor = call(inputManager, "monitorGestureInput", "KillSuoji-Root-Overlay", Display.DEFAULT_DISPLAY);
@@ -190,22 +198,41 @@ public final class RootWindowMain {
         call(tx, "close");
     }
 
-    private static void drawCenteredText(Canvas canvas, String value, float cx, float cy, float size, int color) {
-        // Avoid Paint.getFontMetrics(): on some vendor Android builds this can enter
-        // Typeface resolution and stall/crash the root-owned overlay process.
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setColor(color);
-        p.setTextSize(size);
-        p.setTextAlign(Paint.Align.CENTER);
-        p.setFakeBoldText(true);
-        // Approximate the baseline without querying font metrics. This keeps the
-        // text path independent from the failing Typeface metrics lookup.
-        canvas.drawText(value, cx, cy + size * 0.34f, p);
+    private static void loadOverlayLabels(Context context) throws Exception {
+        InputStream input = context.getAssets().open("overlay_labels.png.b64");
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[4096];
+        int count;
+        while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+        input.close();
+        byte[] png = Base64.decode(output.toByteArray(), Base64.DEFAULT);
+        Bitmap sheet = BitmapFactory.decodeByteArray(png, 0, png.length);
+        if (sheet == null || sheet.getWidth() != 244 || sheet.getHeight() != 158) {
+            throw new IllegalStateException("Overlay label bitmap sheet is invalid");
+        }
+        stopLabel = Bitmap.createBitmap(sheet, 0, 0, 116, 57);
+        cancelLabel = Bitmap.createBitmap(sheet, 0, 57, 244, 43);
+        safetyLabel = Bitmap.createBitmap(sheet, 0, 100, 228, 58);
+        sheet.recycle();
+        writeLog("Pre-rendered overlay labels loaded", null);
     }
 
-    // Draw and post the visible button background first. Text rendering is deliberately
-    // isolated from the input-monitor looper: a vendor font renderer must never prevent
-    // the native overlay from attaching or receiving taps.
+    private static void drawCenteredText(Canvas canvas, String value, float cx, float cy, float size, int color) {
+        Bitmap bitmap;
+        float referenceSize;
+        if ("停止".equals(value)) { bitmap = stopLabel; referenceSize = 56f; }
+        else if ("取消安全模式".equals(value)) { bitmap = cancelLabel; referenceSize = 40f; }
+        else if ("安全模式".equals(value)) { bitmap = safetyLabel; referenceSize = 56f; }
+        else return;
+        if (bitmap == null || bitmap.isRecycled()) return;
+        float scale = size / referenceSize;
+        float w = bitmap.getWidth() * scale;
+        float h = bitmap.getHeight() * scale;
+        RectF dst = new RectF(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        canvas.drawBitmap(bitmap, null, dst, paint);
+    }
+
     private static void drawNormalButton() {
         if (buttonSurface == null) {
             writeLog("Cannot draw normal button: drawing Surface is null", null);
@@ -213,61 +240,35 @@ public final class RootWindowMain {
         }
         Canvas canvas = null;
         try {
-            writeLog("Locking normal button background canvas", null);
+            writeLog("Locking single-pass normal button canvas", null);
             canvas = buttonSurface.lockCanvas(null);
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
             drawNormalButtonBackground(canvas);
+            drawCenteredText(canvas, "停止", width / 2f, mainHeight / 2f, 17f * density, Color.WHITE);
+            if (safetyMode) {
+                int ch = Math.max(1, (int)(25f * density));
+                drawCenteredText(canvas, "取消安全模式", width / 2f, cancelTop + ch / 2f, 12f * density, Color.WHITE);
+            }
             buttonSurface.unlockCanvasAndPost(canvas);
             canvas = null;
-            writeLog("Button background posted before text rendering", null);
+            writeLog("Normal button background and labels posted in one pass", null);
         } catch (Throwable error) {
-            writeLog("Normal button background draw failed", error);
+            writeLog("Normal button single-pass draw failed", error);
             if (canvas != null) {
                 try { buttonSurface.unlockCanvasAndPost(canvas); } catch (Throwable ignored) {}
             }
-            return;
         }
-
-        Thread textThread = new Thread(() -> drawNormalButtonLabels(), "KillSuojiOverlayText");
-        textThread.setDaemon(true);
-        textThread.start();
     }
 
     private static void drawNormalButtonBackground(Canvas canvas) {
         Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
         bg.setColor(Color.BLACK);
-        canvas.drawRoundRect(0, 0, width, mainHeight, 8f*density, 8f*density, bg);
+        canvas.drawRoundRect(0, 0, width, mainHeight, 8f * density, 8f * density, bg);
         if (safetyMode) {
-            int ch = Math.max(1, (int)(25f*density));
+            int ch = Math.max(1, (int)(25f * density));
             Paint cbg = new Paint(Paint.ANTI_ALIAS_FLAG);
-            cbg.setColor(Color.rgb(75,24,30));
-            canvas.drawRoundRect(0, cancelTop, width, cancelTop+ch, 7f*density, 7f*density, cbg);
-        }
-    }
-
-    // This second pass runs off the input looper. If text rendering stalls on a
-    // vendor ROM, the already-posted black button remains visible and tappable.
-    private static void drawNormalButtonLabels() {
-        if (buttonSurface == null) return;
-        Canvas canvas = null;
-        try {
-            writeLog("Background text-render thread started", null);
-            canvas = buttonSurface.lockCanvas(null);
-            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
-            drawNormalButtonBackground(canvas);
-            drawCenteredText(canvas, "停止", width/2f, mainHeight/2f, 17f*density, Color.WHITE);
-            if (safetyMode) {
-                int ch = Math.max(1, (int)(25f*density));
-                drawCenteredText(canvas, "取消安全模式", width/2f, cancelTop+ch/2f, 12f*density, Color.WHITE);
-            }
-            buttonSurface.unlockCanvasAndPost(canvas);
-            canvas = null;
-            writeLog("Normal button labels rendered and posted", null);
-        } catch (Throwable error) {
-            writeLog("Normal button label pass failed; background remains posted", error);
-            if (canvas != null) {
-                try { buttonSurface.unlockCanvasAndPost(canvas); } catch (Throwable ignored) {}
-            }
+            cbg.setColor(Color.rgb(75, 24, 30));
+            canvas.drawRoundRect(0, cancelTop, width, cancelTop + ch, 7f * density, 7f * density, cbg);
         }
     }
 
