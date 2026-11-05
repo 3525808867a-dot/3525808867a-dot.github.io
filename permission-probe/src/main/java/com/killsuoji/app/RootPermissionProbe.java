@@ -86,7 +86,7 @@ public final class RootPermissionProbe extends Activity {
         });
     }
 
-    private RootPermissionProbe() {}
+    public RootPermissionProbe() {}
 
     public static void main(String[] args) {
         System.out.println("探测入口已启动");
