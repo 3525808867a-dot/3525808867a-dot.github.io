@@ -1,9 +1,9 @@
-name: Build KillSuoji root permission probe
-# Stable V3.1.0 signing and PR build support
+name: Build KillSuoji V3.1.1 overlay hotfix
+# Stable V3.1.1 signing and PR build support
 
 on:
   push:
-    branches: [root-surface-prototype, release/v3.1.0-formal]
+    branches: [root-surface-prototype, release/v3.1.1-formal]
     paths:
       - "app/**"
       - "module/**"
@@ -87,7 +87,7 @@ jobs:
           echo "This certificate is the required signing identity for all future KillSuoji releases."
       - uses: actions/upload-artifact@v4
         with:
-          name: killsuoji-v3.1.0-formal-apks
+          name: killsuoji-v3.1.1-overlay-hotfix-apks
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             permission-probe/build/outputs/apk/debug/permission-probe-debug.apk
@@ -97,7 +97,7 @@ jobs:
         run: |
           mkdir -p downloads
           cp permission-probe/build/outputs/apk/debug/permission-probe-debug.apk downloads/killsuoji-root-permission-probe.apk
-          cp app/build/outputs/apk/debug/app-debug.apk downloads/3.1.0.apk
+          cp app/build/outputs/apk/debug/app-debug.apk downloads/3.1.1.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add downloads/killsuoji-root-permission-probe.apk downloads/3.1.0.apk
