@@ -356,7 +356,7 @@ private fun LaunchScreen(modifier: Modifier = Modifier, isWorking: Boolean, onTo
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Root 音量键拦截", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (isWorking) "Root 监听运行中：在任意应用 3 秒内连续按 5 次音量下键，自动启动 KillSuoji。"
+                    if (isWorking) "Root 监听运行中：在任意应用或桌面 3 秒内连续按 5 次音量下键，先清理前台和后台第三方应用进程，再启动 KillSuoji。"
                     else "点击执行后由 Root 监听音量下键；五次触发后由 Root 执行 /data/local/tmp/launch_killapp.sh。",
                     color = Color(0xFF68736D), fontSize = 14.sp
                 )
