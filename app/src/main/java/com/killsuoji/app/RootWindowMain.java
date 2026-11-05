@@ -32,6 +32,7 @@ public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
     private static volatile boolean starting = false;
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
+    private static final String BUILD_ID = "2.6.3-PR-06-no-typeface";
 
     private static synchronized void writeLog(String message, Throwable error) {
         StringBuilder line = new StringBuilder();
@@ -73,7 +74,7 @@ public final class RootWindowMain {
         InputEventReceiver receiver = null;
         SurfaceControl buttonControl = null;
         Surface buttonSurface = null;
-        writeLog("RootWindowMain entered; uid=" + android.os.Process.myUid(), null);
+        writeLog("BUILD_ID=" + BUILD_ID + "; RootWindowMain entered; uid=" + android.os.Process.myUid(), null);
         try {
             Looper.prepareMainLooper();
             writeLog("Main looper prepared", null);
