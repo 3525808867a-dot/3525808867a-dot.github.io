@@ -2,6 +2,7 @@ package com.killsuoji.app
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -39,6 +40,12 @@ private val KsuAccent = Color(0xFF4285F4)
 private val StatusRed = Color(0xFFFFE1E1)
 private val StatusGreen = Color(0xFFD5F7E1)
 
+private fun isVolumeDownServiceEnabled(context: Context): Boolean {
+    val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+    val expected = ComponentName(context, VolumeDownShortcutService::class.java).flattenToString()
+    return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +76,14 @@ private fun KillSuojiApp() {
     var tab by remember { mutableIntStateOf(0) }
     var rootDetected by remember { mutableStateOf(false) }
     var isWorking by remember { mutableStateOf(prefs.getBoolean("is_working", false)) }
+    var accessibilityEnabled by remember { mutableStateOf(isVolumeDownServiceEnabled(context)) }
+
+    LaunchedEffect(tab) {
+        while (tab == 1) {
+            accessibilityEnabled = isVolumeDownServiceEnabled(context)
+            delay(700)
+        }
+    }
 
     LaunchedEffect(Unit) {
         rootDetected = withContext(Dispatchers.IO) { detectRootPermission() }
@@ -93,9 +108,17 @@ private fun KillSuojiApp() {
         ) { padding ->
             when (tab) {
                 0 -> HomeScreen(Modifier.padding(padding), rootDetected, isWorking)
-                1 -> if (rootDetected) LaunchScreen(Modifier.padding(padding), isWorking) {
-                    isWorking = !isWorking
-                    prefs.edit().putBoolean("is_working", isWorking).apply()
+                1 -> if (rootDetected) LaunchScreen(
+                    Modifier.padding(padding), isWorking, accessibilityEnabled,
+                    onEnableAccessibility = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                ) {
+                    if (!accessibilityEnabled && !isWorking) {
+                        Toast.makeText(context, "请先开启 KillSuoji 辅助功能权限", Toast.LENGTH_LONG).show()
+                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    } else {
+                        isWorking = !isWorking
+                        prefs.edit().putBoolean("is_working", isWorking).apply()
+                    }
                 } else HomeScreen(Modifier.padding(padding), false, false)
                 else -> SettingsScreen(Modifier.padding(padding))
             }
@@ -143,7 +166,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.3.6 Beta", fontSize = 13.sp, color = Color(0xFF68736D))
+                    Text("V2.4.0 Beta", fontSize = 13.sp, color = Color(0xFF68736D))
                     
                 }
             }
@@ -293,19 +316,36 @@ private fun UpdateCard() {
 }
 
 @Composable
-private fun LaunchScreen(modifier: Modifier = Modifier, isWorking: Boolean, onToggle: () -> Unit) {
-    Column(
-        modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+private fun LaunchScreen(
+    modifier: Modifier = Modifier,
+    isWorking: Boolean,
+    accessibilityEnabled: Boolean,
+    onEnableAccessibility: () -> Unit,
+    onToggle: () -> Unit
+) {
+    Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("音量键拦截", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (accessibilityEnabled) "辅助功能已开启：工作中连续按 5 次音量下键即可返回 KillSuoji。"
+                    else "请先开启辅助功能权限，才能在其他应用中检测音量下键。",
+                    color = Color(0xFF68736D), fontSize = 14.sp
+                )
+                if (!accessibilityEnabled) {
+                    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEnableAccessibility)) {
+                        Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) {
+                            Text("开启辅助功能权限", color = KsuAccent, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
         Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle)) {
-            Box(
-                Modifier.fillMaxWidth().padding(vertical = 20.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(if (isWorking) "停止" else "执行", fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold, color = KsuAccent)
+            Box(Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
+                Text(if (isWorking) "停止" else "执行", fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
+                    color = if (isWorking) Color(0xFFB42318) else KsuAccent)
             }
         }
     }
