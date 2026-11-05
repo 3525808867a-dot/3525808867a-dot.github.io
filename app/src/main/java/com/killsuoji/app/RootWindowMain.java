@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
-import android.graphics.Typeface;
 import android.hardware.input.InputManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -116,15 +115,9 @@ public final class RootWindowMain {
                 Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
                 text.setColor(Color.WHITE);
                 text.setTextSize(12f * density);
-                // Some vendor builds return null for named typefaces; never let font lookup
-                // abort native overlay startup. Paint keeps its platform default if unavailable.
-                try {
-                    Typeface fallbackTypeface = Typeface.DEFAULT_BOLD;
-                    if (fallbackTypeface == null) fallbackTypeface = Typeface.DEFAULT;
-                    if (fallbackTypeface != null) text.setTypeface(fallbackTypeface);
-                } catch (Throwable fontError) {
-                    writeLog("Typeface fallback unavailable; using Paint default", fontError);
-                }
+                // Do not call Typeface APIs here. Some vendor builds crash inside
+                // Typeface.DEFAULT_BOLD / Typeface.create when the base font is null.
+                // A Paint with no explicit typeface uses the platform default.
                 text.setTextAlign(Paint.Align.CENTER);
                 Paint.FontMetrics fm = text.getFontMetrics();
                 float baseline = height / 2f - (fm.ascent + fm.descent) / 2f;
