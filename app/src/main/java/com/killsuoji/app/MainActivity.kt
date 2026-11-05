@@ -142,6 +142,14 @@ private fun KillSuojiApp() {
             val rootTask = async(Dispatchers.IO) { detectRootPermission() }
             val moduleTask = async(Dispatchers.IO) { detectOverlayModule() }
 
+            // 优先完成 Root/模块识别并立即刷新首页，应用列表加载放在后面。
+            rootDetected = rootTask.await()
+            prefs.edit().putBoolean("root_detected_cache", rootDetected).apply()
+
+            moduleInstalled = moduleTask.await()
+            prefs.edit().putBoolean("module_installed_cache", moduleInstalled).apply()
+            moduleCheckComplete = true
+
             val discovered = appsTask.await()
             installedApps.clear()
             installedApps.addAll(discovered)
@@ -151,13 +159,6 @@ private fun KillSuojiApp() {
             } else {
                 whitelist = (prefs.getStringSet("app_whitelist", emptySet())?.toSet() ?: emptySet()) + context.packageName
             }
-
-            rootDetected = rootTask.await()
-            prefs.edit().putBoolean("root_detected_cache", rootDetected).apply()
-
-            moduleInstalled = moduleTask.await()
-            prefs.edit().putBoolean("module_installed_cache", moduleInstalled).apply()
-            moduleCheckComplete = true
 
             if (!moduleInstalled && prefs.getBoolean("is_working", false)) {
                 prefs.edit().putBoolean("is_working", false).apply()
