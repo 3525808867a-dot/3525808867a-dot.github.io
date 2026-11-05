@@ -73,8 +73,8 @@ jobs:
           from datetime import date
           with open("app/build.gradle.kts", encoding="utf-8") as f:
               gradle = f.read()
-          version_match = re.search(r'versionName\\s*=\\s*"([^"]+)"', gradle)
-          code_match = re.search(r'versionCode\\s*=\\s*(\\d+)', gradle)
+          version_match = re.search(r'versionName\s*=\s*"([^"]+)"', gradle)
+          code_match = re.search(r'versionCode\s*=\s*(\\d+)', gradle)
           if not version_match or not code_match:
               raise SystemExit("Cannot read app version metadata")
           version = version_match.group(1)
