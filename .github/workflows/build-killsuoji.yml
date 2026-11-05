@@ -61,7 +61,7 @@ jobs:
           note = "（当前为beta测试版，如有bug请联系作者）"
           with open("README.md", encoding="utf-8") as f:
               readme = f.read()
-          readme = re.sub(r'V\d+\.\d+\.\d+(?:\s+beta)?', label, readme, flags=re.I)
+          readme = re.sub(r'V\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?(?:\s+beta)?', label, readme, flags=re.I)
           readme = readme.replace("\n\n" + note, "").replace(note, "")
           if re.search(r'beta', version, re.I):
               readme = readme.rstrip() + "\n\n" + note + "\n"
