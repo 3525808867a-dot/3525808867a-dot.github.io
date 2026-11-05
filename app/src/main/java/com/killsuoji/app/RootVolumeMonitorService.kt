@@ -154,9 +154,36 @@ class RootVolumeMonitorService : Service() {
             val encoded = Base64.encodeToString(whitelistText.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
             val rootCommand = """
                 WLFILE=/data/local/tmp/killsuoji_safe_whitelist.txt
-                echo '$encoded' | base64 -d > "${'$'}WLFILE" || exit 20
-                WL=" $(tr '\n' ' ' < "${'
-            """.trimIndent()
+                FAILFILE=/data/local/tmp/killsuoji_cleanup_failed.§$
+                mkdir -p /data/adb/killsuoji_overlay || exit 19
+                echo '$encoded' | base64 -d > "§{WLFILE}" || exit 20
+                : > "§{FAILFILE}" || exit 22
+                WL=" $(tr '\n' ' ' < "§{WLFILE}") "
+                UID_NOW=$(id -u 2>/dev/null)
+                if [ "§{UID_NOW}" != "0" ]; then
+                  echo "ROOT_REQUIRED:uid=§{UID_NOW}" >> /data/adb/killsuoji_overlay/root-window.log
+                  exit 21
+                fi
+                echo "[$(date +%s)] ROOT_CLEANUP_BEGIN uid=§{UID_NOW}" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=$(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r §{pkg}; do
+                    [ -n "§{pkg}" ] || continue
+                    case "§{WL}" in *" §{pkg} "*) echo "WHITELIST_SKIP:§{pkg}" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "§{pkg}" >/dev/null 2>&1; then
+                      echo "ROOT_STOPPED_PACKAGE:§{pkg}" >> /data/adb/killsuoji_overlay/root-window.log
+                      echo 1
+                    else
+                      echo "ROOT_STOP_FAILED:§{pkg}" >> /data/adb/killsuoji_overlay/root-window.log
+                      echo "§{pkg}" >> "§{FAILFILE}"
+                      echo 0
+                    fi
+                  done | awk '{total+=$1} END {print total+0}'
+                )
+                FAILS=$(wc -l < "§{FAILFILE}" | tr -d ' ')
+                echo "[$(date +%s)] ROOT_CLEANUP_END stopped_package_count=§{COUNT} failed_package_count=§{FAILS}" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "§{FAILS}" -gt 0 ]; then echo -1; else echo "§{COUNT}"; fi
+                rm -f "§{WLFILE}" "§{FAILFILE}"
+            """.trimIndent().replace("§{", "\${'$'}{")
             val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
             if (!process.waitFor(60, TimeUnit.SECONDS)) {
                 process.destroyForcibly()
