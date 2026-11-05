@@ -33,6 +33,7 @@ import java.io.StringWriter;
 public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
+    private static final String SAFETY_FILE = "/data/adb/killsuoji_overlay/safety_mode";
     private static final String BUILD_ID = "3.1.0-formal";
     private static SurfaceControl monitorSurface;
     private static SurfaceControl buttonControl;
@@ -117,6 +118,7 @@ public final class RootWindowMain {
             top = Math.max(0, dm.heightPixels - (int) (34f * density) - height);
 
             writeLog("Building SurfaceControl button", null);
+            safetyMode = new java.io.File(SAFETY_FILE).exists();
             buttonControl = createSurface("KillSuoji-Root-Button", width, height);
             writeLog("SurfaceControl button built", null);
             buttonSurface = new Surface(buttonControl);
@@ -124,6 +126,11 @@ public final class RootWindowMain {
             applySurface(buttonControl, left, top, Integer.MAX_VALUE - 2, width, height);
             writeLog("SurfaceControl transaction applied", null);
             writeLog("Native SurfaceControl button attached; monitor active at " + left + "," + top + " size " + width + "x" + height, null);
+            if (safetyMode) {
+                writeLog("Restoring persisted safety mode after overlay restart", null);
+                createSafetyOverlay();
+                dispatchServiceAction("com.killsuoji.app.action.ENTER_SAFE_MODE");
+            }
 
             final int hitLeft = left, hitRight = left + width, hitTop = top;
             final int mainHitBottom = top + mainHeight;
@@ -227,8 +234,20 @@ public final class RootWindowMain {
     private static void enterSafetyMode() {
         if (safetyMode) return;
         safetyMode = true;
+        try {
+            java.io.File state = new java.io.File(SAFETY_FILE);
+            java.io.File parent = state.getParentFile();
+            if (parent != null && !parent.exists()) parent.mkdirs();
+            state.createNewFile();
+        } catch (Throwable error) { writeLog("Unable to persist safety mode state", error); }
         writeLog("Safety mode entered after five taps within three seconds", null);
         drawNormalButton();
+        createSafetyOverlay();
+        dispatchServiceAction("com.killsuoji.app.action.ENTER_SAFE_MODE");
+    }
+
+    private static void createSafetyOverlay() {
+        if (!safetyMode || safetyControl != null) return;
         try {
             safetyControl = createSurface("KillSuoji-Safety-Mode-Passive", width, safetyHeight);
             safetySurface = new Surface(safetyControl);
@@ -238,7 +257,6 @@ public final class RootWindowMain {
             animateSafetyBanner();
             writeLog("Passive safety overlay attached without touch or drag handling", null);
         } catch (Throwable error) { writeLog("Safety overlay creation failed", error); removeSafetySurface(); }
-        dispatchServiceAction("com.killsuoji.app.action.ENTER_SAFE_MODE");
     }
 
     private static void drawSafetyBanner() {
@@ -274,6 +292,7 @@ public final class RootWindowMain {
     private static void cancelSafetyMode() {
         if (!safetyMode) return;
         safetyMode = false;
+        try { new java.io.File(SAFETY_FILE).delete(); } catch (Throwable ignored) {}
         writeLog("Safety mode cancelled by user", null);
         removeSafetySurface();
         drawNormalButton();
