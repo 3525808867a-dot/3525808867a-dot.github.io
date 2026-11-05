@@ -68,9 +68,38 @@ jobs:
           with open("README.md", "w", encoding="utf-8") as f:
               f.write(readme)
           PY
+          python3 - <<'PY'
+          import json
+          from datetime import date
+          path = "latest.json"
+          try:
+              with open(path, encoding="utf-8") as f:
+                  data = json.load(f)
+          except (OSError, json.JSONDecodeError):
+              data = {}
+          data.update({
+              "name": "KillSuoji Android 应用",
+              "version": "V2.4.0 Beta",
+              "version_code": 13,
+              "status": "available",
+              "updated_at": date.today().isoformat(),
+              "download_page": "https://3525808867a-dot.github.io/",
+              "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.4.0/2.4.0.apk",
+              "features": [
+                  "主页：显示应用工作状态与版本信息。",
+                  "启动页：检测 Root 权限状态并提供执行入口。",
+                  "工作中连续按 5 次音量下键，返回 KillSuoji 并提示拦截成功。",
+                  "通过 Android 辅助功能授权监听音量下键，可随时关闭。"
+              ],
+              "notice": "V2.4.0 Beta 安装包已发布，可以下载。"
+          })
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+              f.write("\\n")
+          PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "${{ steps.version.outputs.apk_name }}" README.md
+          git add "${{ steps.version.outputs.apk_name }}" README.md latest.json
           git commit -m "Publish KillSuoji APK to download site" || echo "APK unchanged"
           git push
       - name: Publish APK release
