@@ -62,8 +62,7 @@ class RootVolumeMonitorService : Service() {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.BOTTOM or Gravity.LEFT
@@ -96,10 +95,8 @@ class RootVolumeMonitorService : Service() {
                     updateNotification("启动脚本执行超时")
                 } else {
                     val output = process.inputStream.bufferedReader().use { it.readText() }
-                    updateNotification(
-                        if (process.exitValue() == 0) "Root 启动脚本执行完成"
-                        else "启动脚本执行失败（${process.exitValue()}）：${output.take(100)}"
-                    )
+                    updateNotification(if (process.exitValue() == 0) "Root 启动脚本执行完成"
+                        else "启动脚本执行失败（${process.exitValue()}）：${output.take(100)}")
                 }
             } catch (e: Exception) {
                 updateNotification("Root 启动脚本执行失败：" + (e.message ?: "未知错误"))
@@ -110,11 +107,8 @@ class RootVolumeMonitorService : Service() {
     }
 
     private fun startForegroundCompat(notification: Notification) {
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
     }
 
     private fun createNotificationChannel() {
@@ -123,18 +117,12 @@ class RootVolumeMonitorService : Service() {
         )
     }
 
-    private fun buildNotification(message: String = "点击屏幕上的 killzuoji 悬浮窗执行启动脚本"): Notification {
-        val pending = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        return Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentTitle("KillSuoji · 工作状态")
-            .setContentText(message)
-            .setContentIntent(pending)
-            .setOngoing(true)
-            .build()
+    private fun buildNotification(message: String = "点击 killzuoji 悬浮窗执行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · 工作状态").setContentText(message)
+            .setContentIntent(pending).setOngoing(true).build()
     }
 
     private fun updateNotification(message: String) {
