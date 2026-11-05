@@ -46,6 +46,11 @@ class MainActivity : ComponentActivity() {
         setContent { KillSuojiApp() }
         showInterceptToast(intent)
         ensureLaunchScriptExists()
+        if (getSharedPreferences("killsuoji_v2", MODE_PRIVATE).getBoolean("is_working", false)) {
+            try {
+                startForegroundService(Intent(this, RootVolumeMonitorService::class.java))
+            } catch (_: Exception) { }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
