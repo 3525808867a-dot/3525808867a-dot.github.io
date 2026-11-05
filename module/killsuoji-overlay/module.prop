@@ -2,5 +2,5 @@ id=killsuoji_overlay
 name=KillSuoji Overlay Keeper
 version=1.0.0 beta
 versionCode=100
-author=酷安 ddddd
+author=酷安ddddd
 description=Keeps the KillSuoji overlay service running using a root userspace watchdog. Does not modify system partitions.
