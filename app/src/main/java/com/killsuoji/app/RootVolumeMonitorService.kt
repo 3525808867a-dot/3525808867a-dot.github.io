@@ -151,7 +151,7 @@ class RootVolumeMonitorService : Service() {
             val rootCommand = """
                 WLFILE=/data/local/tmp/killsuoji_safe_whitelist.txt
                 echo '$encoded' | base64 -d > "${'$'}WLFILE" || exit 20
-                WL=" $(tr '\\n' ' ' < "${'$'}WLFILE") "
+                WL=" $(tr '\n' ' ' < "${'$'}WLFILE") "
                 COUNT=$(
                   pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r ${'$'}pkg; do
                     [ -n "${'$'}pkg" ] || continue
