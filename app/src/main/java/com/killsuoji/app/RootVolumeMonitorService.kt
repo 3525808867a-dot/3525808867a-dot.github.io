@@ -16,7 +16,7 @@ import kotlin.concurrent.thread
 
 /**
  * 用户点击“执行”后启动的前台服务。由 su 运行 getevent 读取全局音量下键，
- * 不请求辅助功能权限；停止时销毁 root getevent 进程。
+ * 不请求辅助功能权限。监听失败时保留错误通知，避免界面仍显示工作中却没有监听。
  */
 class RootVolumeMonitorService : Service() {
     @Volatile private var rootProcess: Process? = null
@@ -26,12 +26,7 @@ class RootVolumeMonitorService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        startForegroundCompat(buildNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -45,16 +40,20 @@ class RootVolumeMonitorService : Service() {
     private fun monitorVolumeDown() {
         var count = 0
         var firstPressAt = 0L
+        var failureMessage: String? = null
         try {
-            // exec 让 su 进程直接变成 getevent，停止服务时可以可靠结束 root 监听进程。
-            val process = ProcessBuilder("su", "-c", "exec /system/bin/getevent -l /dev/input/event*")
+            // 不预先枚举 event 节点：让 getevent 自行监听设备上的全部输入节点，
+            // 避免不同厂商设备的 event 节点数量/权限布局不同导致通配符失效。
+            val process = ProcessBuilder("su", "-c", "exec /system/bin/getevent -lt")
                 .redirectErrorStream(true)
                 .start()
             rootProcess = process
+
             BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
                 while (monitoring) {
                     val line = reader.readLine() ?: break
-                    if (line.contains("KEY_VOLUMEDOWN") && line.trimEnd().endsWith("DOWN")) {
+                    // 不依赖 getevent 输出行的固定结尾格式。
+                    if (line.contains("KEY_VOLUMEDOWN") && Regex("\\bDOWN\\b").containsMatchIn(line)) {
                         val now = SystemClock.elapsedRealtime()
                         if (count == 0 || now - firstPressAt > 3000L) {
                             count = 0
@@ -69,17 +68,27 @@ class RootVolumeMonitorService : Service() {
                     }
                 }
             }
-            if (monitoring && process.exitValueOrNull() != 0) {
-                updateNotification("Root 输入监听未能读取音量键，请检查设备 getevent 支持")
+
+            if (monitoring) {
+                val exitCode = try { process.waitFor() } catch (_: InterruptedException) { -1 }
+                failureMessage = "Root 监听进程已退出（代码 $exitCode），请检查 Root 授权和设备输入事件支持"
             }
         } catch (e: Exception) {
-            updateNotification("Root 音量键监听失败：" + (e.message ?: "请检查 Root 授权"))
+            failureMessage = "Root 音量键监听失败：" + (e.message ?: "请检查 Root 授权")
         } finally {
             rootProcess = null
             if (monitoring) {
                 monitoring = false
-                stopSelf()
+                updateNotification(failureMessage ?: "监听已停止；请重新点击执行")
             }
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
         }
     }
 
@@ -112,7 +121,7 @@ class RootVolumeMonitorService : Service() {
         )
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentTitle("KillSuoji · 工作中")
+            .setContentTitle("KillSuoji · 工作状态")
             .setContentText(message)
             .setContentIntent(pending)
             .setOngoing(true)
@@ -134,8 +143,6 @@ class RootVolumeMonitorService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
-
-    private fun Process.exitValueOrNull(): Int? = try { exitValue() } catch (_: IllegalThreadStateException) { null }
 
     companion object {
         private const val CHANNEL_ID = "killsuoji_root_monitor"
