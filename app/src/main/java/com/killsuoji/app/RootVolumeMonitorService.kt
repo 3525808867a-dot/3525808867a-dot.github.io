@@ -114,7 +114,9 @@ class RootVolumeMonitorService : Service() {
     private fun launchMainActivity() {
         val scriptPath = "/data/local/tmp/launch_killapp.sh"
         try {
-            val process = ProcessBuilder("su", "-c", "sh '$scriptPath'")
+            // Root 为应用授予 SYSTEM_ALERT_WINDOW AppOp（无需显示悬浮窗），以满足 Android 后台 Activity 启动例外；随后执行用户现有脚本。
+            val command = "/system/bin/appops set com.killsuoji.app SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1; sh '$scriptPath'"
+            val process = ProcessBuilder("su", "-c", command)
                 .redirectErrorStream(true)
                 .start()
             val finished = process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)
