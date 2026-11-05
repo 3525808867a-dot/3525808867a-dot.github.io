@@ -4,6 +4,13 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.graphics.PixelFormat
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.provider.Settings
+import android.view.Gravity
+import android.view.WindowManager
+import android.widget.TextView
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -24,11 +31,14 @@ class RootVolumeMonitorService : Service() {
     private var monitorThread: Thread? = null
     @Volatile private var triggerInProgress = false
     @Volatile private var ignoreEventsUntil = 0L
+    private var overlayView: TextView? = null
+    private var overlayWindowManager: WindowManager? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         startForegroundCompat(buildNotification())
+        showKillzuojiOverlay()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -178,6 +188,57 @@ class RootVolumeMonitorService : Service() {
         }
     }
 
+
+    /** 固定显示在底部导航栏“首页”文字位置的不可交互悬浮标记。 */
+    private fun showKillzuojiOverlay() {
+        if (!Settings.canDrawOverlays(this) || overlayView != null) return
+        try {
+            val density = resources.displayMetrics.density
+            val label = TextView(this).apply {
+                text = "killzuoji"
+                setTextColor(android.graphics.Color.WHITE)
+                textSize = 12f
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+                setPadding((8 * density).toInt(), (5 * density).toInt(),
+                    (8 * density).toInt(), (5 * density).toInt())
+                background = GradientDrawable().apply {
+                    setColor(android.graphics.Color.BLACK)
+                    cornerRadius = 0f
+                }
+                importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.BOTTOM or Gravity.LEFT
+                x = (resources.displayMetrics.widthPixels / 6f - 31f * density).toInt().coerceAtLeast(0)
+                y = (55f * density).toInt()
+            }
+            wm.addView(label, params)
+            overlayWindowManager = wm
+            overlayView = label
+        } catch (_: Exception) {
+            overlayView = null
+            overlayWindowManager = null
+        }
+    }
+
+    private fun removeKillzuojiOverlay() {
+        try {
+            overlayView?.let { overlayWindowManager?.removeView(it) }
+        } catch (_: Exception) { }
+        overlayView = null
+        overlayWindowManager = null
+    }
+
     private fun startForegroundCompat(notification: Notification) {
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
@@ -217,6 +278,7 @@ class RootVolumeMonitorService : Service() {
         rootProcess?.destroy()
         rootProcess?.destroyForcibly()
         rootProcess = null
+        removeKillzuojiOverlay()
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
