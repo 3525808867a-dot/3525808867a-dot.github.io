@@ -21,6 +21,9 @@ import android.view.SurfaceControl;
 import android.view.WindowManager;
 import android.util.Log;
 import java.lang.reflect.Method;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 /**
  * Root-owned native overlay. SurfaceControl draws the button above ordinary app
@@ -29,6 +32,26 @@ import java.lang.reflect.Method;
 public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
     private static volatile boolean starting = false;
+    private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
+
+    private static synchronized void writeLog(String message, Throwable error) {
+        StringBuilder line = new StringBuilder();
+        line.append("[").append(System.currentTimeMillis()).append("] ").append(message);
+        if (error != null) {
+            StringWriter sw = new StringWriter();
+            error.printStackTrace(new PrintWriter(sw));
+            line.append("\\n").append(sw);
+        }
+        line.append("\\n");
+        try {
+            java.io.File dir = new java.io.File("/data/adb/killsuoji_overlay");
+            if (!dir.exists()) dir.mkdirs();
+            FileWriter writer = new FileWriter(LOG_FILE, true);
+            writer.write(line.toString());
+            writer.close();
+        } catch (Throwable ignored) {}
+        if (error == null) Log.i(TAG, message); else Log.e(TAG, message, error);
+    }
 
     private static Method findMethod(Class<?> type, String name, int count) throws Exception {
         for (Class<?> c = type; c != null; c = c.getSuperclass()) {
@@ -51,13 +74,18 @@ public final class RootWindowMain {
         InputEventReceiver receiver = null;
         SurfaceControl buttonControl = null;
         Surface buttonSurface = null;
+        writeLog("RootWindowMain entered; uid=" + android.os.Process.myUid(), null);
         try {
             Looper.prepareMainLooper();
+            writeLog("Main looper prepared", null);
             Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
             Object activityThread = activityThreadClass.getMethod("systemMain").invoke(null);
             Context context = (Context) activityThreadClass.getMethod("getSystemContext").invoke(activityThread);
+            writeLog("System context acquired", null);
             InputManager inputManager = (InputManager) context.getSystemService(Context.INPUT_SERVICE);
+            writeLog("Creating gesture input monitor", null);
             monitor = call(inputManager, "monitorGestureInput", "KillSuoji-Root-Overlay", Display.DEFAULT_DISPLAY);
+            writeLog("Gesture input monitor created", null);
             InputChannel channel = (InputChannel) call(monitor, "getInputChannel");
             SurfaceControl monitorSurface = (SurfaceControl) call(monitor, "getSurface");
 
@@ -75,6 +103,7 @@ public final class RootWindowMain {
             call(builder, "setParent", monitorSurface);
             call(builder, "setBufferSize", width, height);
             call(builder, "setFormat", PixelFormat.TRANSLUCENT);
+            writeLog("Building SurfaceControl button", null);
             buttonControl = builder.build();
             buttonSurface = new Surface(buttonControl);
 
@@ -103,7 +132,7 @@ public final class RootWindowMain {
             call(tx, "show", buttonControl);
             call(tx, "apply");
             call(tx, "close");
-            Log.i(TAG, "Native SurfaceControl button attached; monitor active");
+            writeLog("Native SurfaceControl button attached; monitor active at " + left + "," + top + " size " + width + "x" + height, null);
 
             final int hitLeft = left, hitTop = top, hitRight = left + width, hitBottom = top + height;
             receiver = new InputEventReceiver(channel, Looper.myLooper()) {
@@ -127,7 +156,7 @@ public final class RootWindowMain {
             };
             Looper.loop();
         } catch (Throwable error) {
-            Log.e(TAG, "Native overlay startup failed", error);
+            writeLog("Native overlay startup failed", error);
         } finally {
             try { if (receiver != null) receiver.dispose(); } catch (Throwable ignored) {}
             try { if (monitor != null) call(monitor, "dispose"); } catch (Throwable ignored) {}
@@ -139,15 +168,17 @@ public final class RootWindowMain {
     private static void executeNow() {
         if (starting) return;
         starting = true;
+        writeLog("Overlay button tapped; dispatching execute action", null);
         new Thread(() -> {
             try {
                 Process p = new ProcessBuilder("sh", "-c",
                     "am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService "
                     + "-a com.killsuoji.app.action.EXECUTE_NOW")
                     .redirectErrorStream(true).start();
-                p.waitFor();
+                int exitCode = p.waitFor();
+                writeLog("Execute action service dispatch exit=" + exitCode, null);
             } catch (Throwable t) {
-                Log.e(TAG, "Unable to dispatch execute action", t);
+                writeLog("Unable to dispatch execute action", t);
             } finally {
                 starting = false;
             }
