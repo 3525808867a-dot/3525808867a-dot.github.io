@@ -5,10 +5,12 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.hardware.input.InputManager;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.InputChannel;
@@ -30,9 +32,22 @@ import java.io.StringWriter;
  */
 public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
-    private static volatile boolean starting = false;
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
-    private static final String BUILD_ID = "2.6.3-PR-07-no-text-render";
+    private static final String SAFETY_FILE = "/data/adb/killsuoji_overlay/safety_mode";
+    private static final String BUILD_ID = "3.1.0-formal";
+    private static SurfaceControl monitorSurface;
+    private static SurfaceControl buttonControl;
+    private static Surface buttonSurface;
+    private static SurfaceControl safetyControl;
+    private static Surface safetySurface;
+    private static Handler mainHandler;
+    private static int left, top, width, height, mainHeight, cancelTop, cancelBottom, safetyHeight;
+    private static float density;
+    private static volatile boolean safetyMode = false;
+    private static int tapCount = 0;
+    private static long firstTapAt = 0L;
+    private static int rainbowIndex = 0;
+    private static final int[] RAINBOW = { Color.rgb(255,65,85), Color.rgb(255,145,40), Color.rgb(255,220,55), Color.rgb(65,220,110), Color.rgb(55,165,255), Color.rgb(175,95,255) };
 
     private static synchronized void writeLog(String message, Throwable error) {
         StringBuilder line = new StringBuilder();
@@ -72,11 +87,11 @@ public final class RootWindowMain {
     public static void main(String[] args) {
         Object monitor = null;
         InputEventReceiver receiver = null;
-        SurfaceControl buttonControl = null;
-        Surface buttonSurface = null;
+
         writeLog("BUILD_ID=" + BUILD_ID + "; RootWindowMain entered; uid=" + android.os.Process.myUid(), null);
         try {
             Looper.prepareMainLooper();
+            mainHandler = new Handler(Looper.myLooper());
             writeLog("Main looper prepared", null);
             Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
             Object activityThread = activityThreadClass.getMethod("systemMain").invoke(null);
@@ -87,57 +102,39 @@ public final class RootWindowMain {
             monitor = call(inputManager, "monitorGestureInput", "KillSuoji-Root-Overlay", Display.DEFAULT_DISPLAY);
             writeLog("Gesture input monitor created", null);
             InputChannel channel = (InputChannel) call(monitor, "getInputChannel");
-            SurfaceControl monitorSurface = (SurfaceControl) call(monitor, "getSurface");
+            monitorSurface = (SurfaceControl) call(monitor, "getSurface");
 
             WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
             DisplayMetrics dm = new DisplayMetrics();
             wm.getDefaultDisplay().getRealMetrics(dm);
-            float density = dm.density;
-            int width = Math.max(1, (int) (94f * density));
-            int height = Math.max(1, (int) (30f * density));
-            int left = Math.max(0, (int) (dm.widthPixels / 6f - 31f * density));
-            int top = Math.max(0, dm.heightPixels - (int) (34f * density) - height);
+            density = dm.density;
+            width = Math.max(1, (int) (128f * density));
+            mainHeight = Math.max(1, (int) (36f * density));
+            height = Math.max(1, (int) (68f * density));
+            cancelTop = mainHeight + Math.max(1, (int) (4f * density));
+            cancelBottom = cancelTop + Math.max(1, (int) (25f * density));
+            safetyHeight = mainHeight;
+            left = Math.max(0, (int) (dm.widthPixels / 6f - 31f * density));
+            top = Math.max(0, dm.heightPixels - (int) (34f * density) - height);
 
-            SurfaceControl.Builder builder = new SurfaceControl.Builder();
-            call(builder, "setName", "KillSuoji-PR07-Button");
-            call(builder, "setParent", monitorSurface);
-            call(builder, "setBufferSize", width, height);
-            call(builder, "setFormat", PixelFormat.TRANSLUCENT);
             writeLog("Building SurfaceControl button", null);
-            buttonControl = builder.build();
+            safetyMode = new java.io.File(SAFETY_FILE).exists();
+            buttonControl = createSurface("KillSuoji-Root-Button", width, height);
             writeLog("SurfaceControl button built", null);
             buttonSurface = new Surface(buttonControl);
-            writeLog("Button Surface created", null);
-
-            Canvas canvas = buttonSurface.lockCanvas(null);
-            writeLog("Button canvas locked", null);
-            try {
-                canvas.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR);
-                Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
-                bg.setColor(Color.BLACK);
-                canvas.drawRoundRect(0, 0, width, height, 4f * density, 4f * density, bg);
-                // Avoid all text rendering on vendor builds with broken font initialization.
-                Paint marker = new Paint(Paint.ANTI_ALIAS_FLAG);
-                marker.setColor(Color.WHITE);
-                canvas.drawCircle(width / 2f, height / 2f, 5f * density, marker);
-                marker.setColor(Color.rgb(66, 133, 244));
-                canvas.drawCircle(width / 2f, height / 2f, 2.5f * density, marker);
-            } finally {
-                buttonSurface.unlockCanvasAndPost(canvas);
-                writeLog("Button canvas posted", null);
+            drawNormalButton();
+            applySurface(buttonControl, left, top, Integer.MAX_VALUE - 2, width, height);
+            writeLog("SurfaceControl transaction applied", null);
+            writeLog("Native SurfaceControl button attached; monitor active at " + left + "," + top + " size " + width + "x" + height, null);
+            if (safetyMode) {
+                writeLog("Restoring persisted safety mode after overlay restart", null);
+                createSafetyOverlay();
+                dispatchServiceAction("com.killsuoji.app.action.ENTER_SAFE_MODE");
             }
 
-            SurfaceControl.Transaction tx = new SurfaceControl.Transaction();
-            call(tx, "setPosition", buttonControl, (float) left, (float) top);
-            call(tx, "setWindowCrop", buttonControl, new Rect(0, 0, width, height));
-            call(tx, "setLayer", buttonControl, Integer.MAX_VALUE - 2);
-            call(tx, "show", buttonControl);
-            call(tx, "apply");
-            writeLog("SurfaceControl transaction applied", null);
-            call(tx, "close");
-            writeLog("Native SurfaceControl button attached; monitor active at " + left + "," + top + " size " + width + "x" + height, null);
-
-            final int hitLeft = left, hitTop = top, hitRight = left + width, hitBottom = top + height;
+            final int hitLeft = left, hitRight = left + width, hitTop = top;
+            final int mainHitBottom = top + mainHeight;
+            final int cancelHitTop = top + cancelTop, cancelHitBottom = top + cancelBottom;
             receiver = new InputEventReceiver(channel, Looper.myLooper()) {
                 @Override public void onInputEvent(InputEvent event) {
                     try {
@@ -145,13 +142,14 @@ public final class RootWindowMain {
                             MotionEvent motion = (MotionEvent) event;
                             if (motion.getActionMasked() == MotionEvent.ACTION_UP) {
                                 float x = motion.getRawX(), y = motion.getRawY();
-                                if (x >= hitLeft && x <= hitRight && y >= hitTop && y <= hitBottom) {
-                                    executeNow();
+                                if (x >= hitLeft && x <= hitRight) {
+                                    if (safetyMode && y >= cancelHitTop && y <= cancelHitBottom) cancelSafetyMode();
+                                    else if (y >= hitTop && y <= mainHitBottom) handleNormalTap();
                                 }
                             }
                         }
                     } catch (Throwable error) {
-                        Log.e(TAG, "Input dispatch failed", error);
+                        writeLog("Input dispatch failed", error);
                     } finally {
                         finishInputEvent(event, false);
                     }
@@ -168,23 +166,165 @@ public final class RootWindowMain {
         }
     }
 
+    private static SurfaceControl createSurface(String name, int w, int h) throws Exception {
+        SurfaceControl.Builder builder = new SurfaceControl.Builder();
+        call(builder, "setName", name);
+        call(builder, "setParent", monitorSurface);
+        call(builder, "setBufferSize", w, h);
+        call(builder, "setFormat", PixelFormat.TRANSLUCENT);
+        return builder.build();
+    }
+
+    private static void applySurface(SurfaceControl control, int x, int y, int layer, int w, int h) throws Exception {
+        SurfaceControl.Transaction tx = new SurfaceControl.Transaction();
+        call(tx, "setPosition", control, (float)x, (float)y);
+        call(tx, "setWindowCrop", control, new Rect(0, 0, w, h));
+        call(tx, "setLayer", control, layer);
+        call(tx, "show", control);
+        call(tx, "apply");
+        call(tx, "close");
+    }
+
+    private static void drawCenteredText(Canvas canvas, String value, float cx, float cy, float size, int color) {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(color);
+        p.setTextSize(size);
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setFakeBoldText(true);
+        Paint.FontMetrics fm = p.getFontMetrics();
+        canvas.drawText(value, cx, cy - (fm.ascent + fm.descent) / 2f, p);
+    }
+
+    private static void drawNormalButton() {
+        if (buttonSurface == null) return;
+        Canvas canvas = null;
+        try {
+            canvas = buttonSurface.lockCanvas(null);
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+            Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
+            bg.setColor(Color.BLACK);
+            canvas.drawRoundRect(0, 0, width, mainHeight, 8f*density, 8f*density, bg);
+            drawCenteredText(canvas, "停止", width/2f, mainHeight/2f, 17f*density, Color.WHITE);
+            if (safetyMode) {
+                int ch = Math.max(1, (int)(25f*density));
+                Paint cbg = new Paint(Paint.ANTI_ALIAS_FLAG);
+                cbg.setColor(Color.rgb(75,24,30));
+                canvas.drawRoundRect(0, cancelTop, width, cancelTop+ch, 7f*density, 7f*density, cbg);
+                drawCenteredText(canvas, "取消安全模式", width/2f, cancelTop+ch/2f, 12f*density, Color.WHITE);
+            }
+            buttonSurface.unlockCanvasAndPost(canvas);
+            writeLog("Button canvas posted with text", null);
+        } catch (Throwable error) {
+            try { if (canvas != null) buttonSurface.unlockCanvasAndPost(canvas); } catch (Throwable ignored) {}
+            writeLog("Button text rendering failed", error);
+        }
+    }
+
+    private static void handleNormalTap() {
+        long now = SystemClock.uptimeMillis();
+        if (tapCount == 0 || now - firstTapAt > 3000L) { tapCount = 1; firstTapAt = now; }
+        else tapCount++;
+        writeLog("Normal overlay tap count=" + tapCount, null);
+        if (tapCount >= 5 && now - firstTapAt <= 3000L) {
+            tapCount = 0;
+            enterSafetyMode();
+        } else executeNow();
+    }
+
+    private static void enterSafetyMode() {
+        if (safetyMode) return;
+        safetyMode = true;
+        try {
+            java.io.File state = new java.io.File(SAFETY_FILE);
+            java.io.File parent = state.getParentFile();
+            if (parent != null && !parent.exists()) parent.mkdirs();
+            state.createNewFile();
+        } catch (Throwable error) { writeLog("Unable to persist safety mode state", error); }
+        writeLog("Safety mode entered after five taps within three seconds", null);
+        drawNormalButton();
+        createSafetyOverlay();
+        dispatchServiceAction("com.killsuoji.app.action.ENTER_SAFE_MODE");
+    }
+
+    private static void createSafetyOverlay() {
+        if (!safetyMode || safetyControl != null) return;
+        try {
+            safetyControl = createSurface("KillSuoji-Safety-Mode-Passive", width, safetyHeight);
+            safetySurface = new Surface(safetyControl);
+            drawSafetyBanner();
+            int safeTop = Math.max(0, top - safetyHeight - Math.max(2, (int)(5f*density)));
+            applySurface(safetyControl, left, safeTop, Integer.MAX_VALUE - 1, width, safetyHeight);
+            animateSafetyBanner();
+            writeLog("Passive safety overlay attached without touch or drag handling", null);
+        } catch (Throwable error) { writeLog("Safety overlay creation failed", error); removeSafetySurface(); }
+    }
+
+    private static void drawSafetyBanner() {
+        if (safetySurface == null || !safetyMode) return;
+        Canvas canvas = null;
+        try {
+            canvas = safetySurface.lockCanvas(null);
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+            Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
+            bg.setColor(Color.BLACK);
+            canvas.drawRoundRect(0, 0, width, safetyHeight, 8f*density, 8f*density, bg);
+            int[] colors = { Color.rgb(255,65,85), Color.rgb(255,145,40), Color.rgb(255,220,55), Color.rgb(65,220,110), Color.rgb(55,165,255), Color.rgb(175,95,255) };
+            drawCenteredText(canvas, "安全模式", width/2f, safetyHeight/2f, 17f*density, colors[rainbowIndex % colors.length]);
+            safetySurface.unlockCanvasAndPost(canvas);
+        } catch (Throwable error) {
+            try { if (canvas != null) safetySurface.unlockCanvasAndPost(canvas); } catch (Throwable ignored) {}
+            writeLog("Safety banner draw failed", error);
+        }
+    }
+
+    private static void animateSafetyBanner() {
+        if (!safetyMode || safetySurface == null || mainHandler == null) return;
+        mainHandler.postDelayed(new Runnable() {
+            @Override public void run() {
+                if (!safetyMode || safetySurface == null) return;
+                rainbowIndex = (rainbowIndex + 1) % 6;
+                drawSafetyBanner();
+                animateSafetyBanner();
+            }
+        }, 170L);
+    }
+
+    private static void cancelSafetyMode() {
+        if (!safetyMode) return;
+        safetyMode = false;
+        try { new java.io.File(SAFETY_FILE).delete(); } catch (Throwable ignored) {}
+        writeLog("Safety mode cancelled by user", null);
+        removeSafetySurface();
+        drawNormalButton();
+        dispatchServiceAction("com.killsuoji.app.action.CANCEL_SAFE_MODE");
+    }
+
+    private static void removeSafetySurface() {
+        try {
+            if (safetyControl != null) {
+                SurfaceControl.Transaction tx = new SurfaceControl.Transaction();
+                call(tx, "hide", safetyControl); call(tx, "apply"); call(tx, "close");
+            }
+        } catch (Throwable ignored) {}
+        try { if (safetySurface != null) safetySurface.release(); } catch (Throwable ignored) {}
+        try { if (safetyControl != null) safetyControl.release(); } catch (Throwable ignored) {}
+        safetySurface = null; safetyControl = null;
+    }
+
     private static void executeNow() {
-        if (starting) return;
-        starting = true;
-        writeLog("Overlay button tapped; dispatching execute action", null);
+        dispatchServiceAction("com.killsuoji.app.action.EXECUTE_NOW");
+    }
+
+    private static void dispatchServiceAction(String action) {
+        writeLog("Dispatching service action=" + action, null);
         new Thread(() -> {
             try {
                 Process p = new ProcessBuilder("sh", "-c",
-                    "am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService "
-                    + "-a com.killsuoji.app.action.EXECUTE_NOW")
+                    "am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService -a " + action)
                     .redirectErrorStream(true).start();
                 int exitCode = p.waitFor();
-                writeLog("Execute action service dispatch exit=" + exitCode, null);
-            } catch (Throwable t) {
-                writeLog("Unable to dispatch execute action", t);
-            } finally {
-                starting = false;
-            }
+                writeLog("Service dispatch exit=" + exitCode + " action=" + action, null);
+            } catch (Throwable t) { writeLog("Unable to dispatch service action=" + action, t); }
         }, "KillSuojiNativeOverlayAction").start();
     }
 }
