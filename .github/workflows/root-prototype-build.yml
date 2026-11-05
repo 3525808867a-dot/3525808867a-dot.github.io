@@ -72,6 +72,22 @@ jobs:
         run: |
           gradle :permission-probe:assembleDebug
           gradle :app:assembleDebug
+      - name: Verify APK signature matches the installed-version signing certificate
+        run: |
+          set -e
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          curl -fsSL "https://raw.githubusercontent.com/3525808867a-dot/3525808867a-dot.github.io/main/downloads/3.0.0-beta.apk" -o "$RUNNER_TEMP/previous-killsuoji.apk"
+          OLD_CERT=$("$APKSIGNER" verify --print-certs "$RUNNER_TEMP/previous-killsuoji.apk" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')
+          NEW_CERT=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')
+          test -n "$OLD_CERT"
+          test -n "$NEW_CERT"
+          echo "Previous APK certificate: $OLD_CERT"
+          echo "New APK certificate: $NEW_CERT"
+          if [ "$OLD_CERT" != "$NEW_CERT" ]; then
+            echo "::error::Signing certificate mismatch; this APK cannot cover-install over V3.0.0 beta."
+            exit 1
+          fi
+          echo "Cover-install signature verified."
       - uses: actions/upload-artifact@v4
         with:
           name: killsuoji-v3.1.0-formal-apks
