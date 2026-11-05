@@ -2,6 +2,7 @@ package com.killsuoji.app;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
 
@@ -17,6 +18,12 @@ public final class RootPermissionProbe {
 
     public static void main(String[] args) {
         try {
+            // ActivityThread.systemMain() constructs a Handler on the current
+            // thread, so prepare the main looper before creating ActivityThread.
+            if (Looper.myLooper() == null) {
+                Looper.prepareMainLooper();
+            }
+
             Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
             Object thread = activityThreadClass.getMethod("systemMain").invoke(null);
             Context context = (Context) activityThreadClass
