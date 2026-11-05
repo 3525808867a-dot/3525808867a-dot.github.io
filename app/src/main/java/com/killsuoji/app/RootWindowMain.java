@@ -35,7 +35,7 @@ public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
     private static final String SAFETY_FILE = "/data/adb/killsuoji_overlay/safety_mode";
-    private static final String BUILD_ID = "3.1.1-overlay-init-hotfix";
+    private static final String BUILD_ID = "3.1.2-overlay-text-safe";
     private static SurfaceControl monitorSurface;
     private static SurfaceControl buttonControl;
     private static Surface buttonSurface;
@@ -221,7 +221,7 @@ public final class RootWindowMain {
             bg.setColor(Color.BLACK);
             canvas.drawRoundRect(0, 0, width, mainHeight, 8f*density, 8f*density, bg);
             try {
-                writeLog("Drawing normal button label without Typeface.create", null);
+                writeLog("Drawing normal button label with fixed baseline", null);
                 drawCenteredText(canvas, "停止", width/2f, mainHeight/2f, 17f*density, Color.WHITE);
                 writeLog("Normal button label rendered", null);
             } catch (Throwable textError) {
