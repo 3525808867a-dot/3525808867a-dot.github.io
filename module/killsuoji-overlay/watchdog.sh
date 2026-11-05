@@ -24,7 +24,15 @@ start_root_window() {
     log "ERROR: cannot locate installed APK (pm path returned: $APK_PATH)"
     return 1
   fi
-  log "Starting RootWindowMain; APK=$APK_PATH"
+  APP_VERSION=$(dumpsys package com.killsuoji.app 2>/dev/null | grep -m 1 -E 'versionName=|versionCode=' | tr '\n' ' ')
+  APK_HASH=$(sha256sum "$APK_PATH" 2>/dev/null | cut -d' ' -f1)
+  log "Starting RootWindowMain; build=2.6.3-PR-06; $APP_VERSION APK=$APK_PATH SHA256=$APK_HASH"
+  # Remove stale native window instances before starting the current installed APK.
+  OLD_PIDS=$(ps -A -o PID,ARGS 2>/dev/null | grep '[c]om.killsuoji.app.RootWindowMain' | awk '{print $1}')
+  for OLD_PID in $OLD_PIDS; do
+    [ "$OLD_PID" = "$" ] || kill "$OLD_PID" 2>/dev/null
+  done
+  sleep 1
   CLASSPATH="$APK_PATH" app_process /system/bin com.killsuoji.app.RootWindowMain >> "$LOGFILE" 2>&1 &
   WINDOW_PID=$!
   echo "$WINDOW_PID" > "$WINDOW_PIDFILE"
