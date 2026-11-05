@@ -277,7 +277,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         Text(
                             if (BuildConfig.VERSION_NAME.endsWith("-beta", ignoreCase = true))
                                 "V${BuildConfig.VERSION_NAME.removeSuffix("-beta")} beta"
-                            else "V${BuildConfig.VERSION_NAME}",
+                            else "V${BuildConfig.VERSION_NAME} 正式版",
                             fontSize = 13.sp, color = Color(0xFF68736D)
                         )
                     }
@@ -564,12 +564,145 @@ private fun LaunchScreen(
 
 @Composable
 private fun SettingsScreen(modifier: Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val repairLines = remember { mutableStateListOf<String>() }
+    var repairing by remember { mutableStateOf(false) }
+
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
+            Text("工具", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Card(modifier = Modifier.fillMaxWidth().clickable(enabled = !repairing) {
+                scope.launch {
+                    repairing = true
+                    repairLines.clear()
+                    repairLines.add("正在读取 Root 启动日志……")
+                    try {
+                        runOneClickRepair { line -> repairLines.add(line) }
+                    } catch (e: Exception) {
+                        repairLines.add("修复过程异常：${e.message ?: "未知错误"}")
+                    } finally {
+                        repairing = false
+                    }
+                }
+            }) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 17.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("一键修复", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text(if (repairing) "正在检测…" else "开始", color = KsuAccent, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        if (repairing || repairLines.isNotEmpty()) {
+            item {
+                Column(Modifier.fillMaxWidth()
+                    .background(Color.Black, RoundedCornerShape(14.dp))
+                    .padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("一键修复进度", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    if (repairing) androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp
+                    )
+                    repairLines.takeLast(18).forEach { line ->
+                        Text(line, color = Color(0xFFE4E4E4), fontSize = 12.sp, lineHeight = 17.sp)
+                    }
+                }
+            }
+        }
+        item {
             Text("关于", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             InfoCard("应用名称", "KillSuoji")
+            InfoCard("当前版本", "V${BuildConfig.VERSION_NAME} 正式版")
         }
+    }
+}
+
+/** 日志驱动的有限修复：只修复 KillSuoji 自己的模块守护标记和守护进程，不触碰系统服务。 */
+private suspend fun runOneClickRepair(onProgress: (String) -> Unit) {
+    onProgress("检查 Root 授权……")
+    val rootCheck = withContext(Dispatchers.IO) { runRepairRootCommand("id") }
+    if (rootCheck.first != 0 || !rootCheck.second.contains("uid=0")) {
+        onProgress("无法修复：当前没有可用的 Root 授权。")
+        return
+    }
+    onProgress("Root 授权正常。")
+
+    onProgress("读取最近的 200 行 Root 悬浮窗日志……")
+    val logResult = withContext(Dispatchers.IO) {
+        runRepairRootCommand("LOG=/data/adb/killsuoji_overlay/root-window.log; if [ -f \"\$LOG\" ]; then tail -n 200 \"\$LOG\"; else echo LOG_NOT_FOUND; fi")
+    }
+    val logText = logResult.second
+    if (logResult.first != 0) {
+        onProgress("日志读取失败：${logText.take(180)}")
+    } else {
+        when {
+            logText.contains("Native overlay startup failed") -> onProgress("日志发现悬浮窗启动异常，准备检查并重启 KillSuoji 守护进程。")
+            logText.contains("monitor active") -> onProgress("日志包含 monitor active，最近一次记录显示触摸监听已启动。")
+            logText.contains("SurfaceControl transaction applied") -> onProgress("日志包含 SurfaceControl transaction applied，最近一次窗口事务已提交。")
+            else -> onProgress("日志未发现明确的悬浮窗启动错误，继续检查模块与守护进程。")
+        }
+    }
+
+    onProgress("检查 killsuoji必要模块和 watchdog.sh……")
+    val moduleCheck = withContext(Dispatchers.IO) {
+        runRepairRootCommand("test -f /data/adb/modules/killsuoji_overlay/module.prop && test -f /data/adb/modules/killsuoji_overlay/watchdog.sh && test ! -f /data/adb/modules/killsuoji_overlay/disable")
+    }
+    if (moduleCheck.first != 0) {
+        onProgress("无法自动修复：未检测到已启用且包含 watchdog.sh 的 killsuoji必要模块，请先在 Root 管理器中安装并启用模块。")
+        return
+    }
+    onProgress("必要模块存在且已启用。")
+
+    onProgress("修复 KillSuoji 守护状态并启动 watchdog……")
+    val repair = withContext(Dispatchers.IO) {
+        runRepairRootCommand("""
+            MOD=/data/adb/modules/killsuoji_overlay
+            STATE=/data/adb/killsuoji_overlay
+            mkdir -p "${'$'}STATE" || exit 10
+            touch "${'$'}STATE/enabled"
+            chmod 700 "${'$'}MOD/watchdog.sh"
+            for PIDFILE in "${'$'}STATE/root-window.pid" "${'$'}STATE/watchdog.pid"; do
+              if [ -f "${'$'}PIDFILE" ]; then
+                PID=$(cat "${'$'}PIDFILE" 2>/dev/null)
+                [ -n "${'$'}PID" ] && kill "${'$'}PID" 2>/dev/null
+                rm -f "${'$'}PIDFILE"
+              fi
+            done
+            nohup sh "${'$'}MOD/watchdog.sh" >/dev/null 2>&1 </dev/null &
+            echo WATCHDOG_RESTART_REQUESTED
+        """.trimIndent())
+    }
+    if (repair.first != 0) {
+        onProgress("自动修复失败（退出码 ${repair.first}）：${repair.second.take(180)}")
+        return
+    }
+    onProgress(repair.second.ifBlank { "守护进程启动命令已执行。" })
+
+    delay(1800)
+    val verify = withContext(Dispatchers.IO) {
+        runRepairRootCommand("test -f /data/adb/killsuoji_overlay/enabled && echo ENABLED; test -f /data/adb/killsuoji_overlay/root-window.pid && echo ROOT_WINDOW_PID_PRESENT; tail -n 8 /data/adb/killsuoji_overlay/root-window.log 2>/dev/null")
+    }
+    if (verify.first == 0) {
+        onProgress("修复后检查结果：")
+        verify.second.lineSequence().filter { it.isNotBlank() }.takeLast(10).forEach(onProgress)
+        if (verify.second.contains("ROOT_WINDOW_PID_PRESENT")) onProgress("已检测到 Root 悬浮窗进程 PID 文件；请观察悬浮窗是否恢复。")
+        else onProgress("守护状态已修复，但暂未检测到 Root 悬浮窗 PID 文件；日志已保留，不能判定完全修复。")
+    } else {
+        onProgress("修复后验证失败：${verify.second.take(180)}")
+    }
+}
+
+private fun runRepairRootCommand(command: String): Pair<Int, String> {
+    return try {
+        val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        if (!process.waitFor(15, TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            Pair(124, "Root 命令执行超时")
+        } else Pair(process.exitValue(), output)
+    } catch (e: Exception) {
+        Pair(1, e.message ?: "Root 命令执行异常")
     }
 }
 
