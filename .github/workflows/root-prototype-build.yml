@@ -87,7 +87,7 @@ jobs:
           echo "This certificate is the required signing identity for all future KillSuoji releases."
       - uses: actions/upload-artifact@v4
         with:
-          name: killsuoji-v3.1.2-pr-no-text
+          name: killsuoji-v3.1.2-pr2-single-red-surface
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             permission-probe/build/outputs/apk/debug/permission-probe-debug.apk
