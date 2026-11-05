@@ -146,16 +146,9 @@ class RootVolumeMonitorService : Service() {
                 val whitelistText = whitelist.sorted().joinToString("\n")
                 val encoded = Base64.encodeToString(whitelistText.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
                 val rootCommand = """
-                    WL_FILE=/data/local/tmp/killsuoji_whitelist.txt
-                    echo '$encoded' | base64 -d > "$WL_FILE" || exit 20
-                    pm list packages -3 | while IFS= read -r line; do
-                      pkg=\${'$'}{line#package:}
-                      [ -z "\${'$'}pkg" ] && continue
-                      if ! grep -Fxq "\${'$'}pkg" "$WL_FILE"; then
-                        am force-stop "\${'$'}pkg" >/dev/null 2>&1
-                      fi
-                    done
-                    rm -f "$WL_FILE"
+                    echo '$encoded' | base64 -d > /data/local/tmp/killsuoji_whitelist.txt || exit 20
+                    pm list packages -3 | cut -d: -f2 | grep -vxFf /data/local/tmp/killsuoji_whitelist.txt | xargs -r -n 1 am force-stop
+                    rm -f /data/local/tmp/killsuoji_whitelist.txt
                     sh /data/local/tmp/launch_killapp.sh
                 """.trimIndent()
                 val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
