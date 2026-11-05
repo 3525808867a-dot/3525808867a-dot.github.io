@@ -180,6 +180,10 @@ class RootVolumeMonitorService : Service() {
         if (safeModeActive) return
         safeModeActive = true
         safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
         updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
         safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
             try {
@@ -205,10 +209,15 @@ class RootVolumeMonitorService : Service() {
     }
 
     private fun stopSafetyMode() {
-        if (!safeModeActive) return
+        val wasActive = safeModeActive
         safeModeActive = false
         safeModeThread?.interrupt()
         safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
         val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
         updateNotification("安全模式已取消，持续 ${seconds} 秒")
         mainHandler.post {
