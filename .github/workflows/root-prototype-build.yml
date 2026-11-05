@@ -5,6 +5,7 @@ on:
     branches: [root-surface-prototype]
     paths:
       - "app/**"
+      - "module/**"
       - "permission-probe/**"
       - "build.gradle.kts"
       - "settings.gradle.kts"
