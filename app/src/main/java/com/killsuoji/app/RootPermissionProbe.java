@@ -1,6 +1,5 @@
 package com.killsuoji.app;
 
-import android.app.ActivityThread;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Process;
@@ -18,10 +17,10 @@ public final class RootPermissionProbe {
 
     public static void main(String[] args) {
         try {
-            Object thread = ActivityThread.systemMain();
-            Context context = (Context) ActivityThread.class
-                    .getMethod("getSystemContext")
-                    .invoke(thread);
+            Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
+            Object thread = activityThreadClass.getMethod("systemMain").invoke(null);
+            Context context = (Context) activityThreadClass
+                    .getMethod("getSystemContext").invoke(thread);
 
             int pid = Process.myPid();
             int uid = Process.myUid();
