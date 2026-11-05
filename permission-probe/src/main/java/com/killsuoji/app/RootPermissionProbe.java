@@ -70,7 +70,7 @@ public final class RootPermissionProbe extends Activity {
                                 new InputStreamReader(process.getInputStream()))) {
                             String line;
                             while ((line = reader.readLine()) != null) {
-                                output.append(line).append('\\n');
+                                output.append(line).append('\n');
                                 final String visibleLine = line;
                                 runOnUiThread(() -> resultView.append(visibleLine + "\\n"));
                             }
