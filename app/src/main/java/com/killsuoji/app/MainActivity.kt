@@ -2,7 +2,6 @@ package com.killsuoji.app
 
 import android.app.DownloadManager
 import android.content.Context
-import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -40,16 +39,24 @@ private val KsuAccent = Color(0xFF4285F4)
 private val StatusRed = Color(0xFFFFE1E1)
 private val StatusGreen = Color(0xFFD5F7E1)
 
-private fun isVolumeDownServiceEnabled(context: Context): Boolean {
-    val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
-    val expected = ComponentName(context, VolumeDownShortcutService::class.java).flattenToString()
-    return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
-}
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { KillSuojiApp() }
+        showInterceptToast(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        showInterceptToast(intent)
+    }
+
+    private fun showInterceptToast(intent: Intent?) {
+        if (intent?.getBooleanExtra("killsuoji_trigger", false) == true) {
+            Toast.makeText(this, "拦截成功！", Toast.LENGTH_SHORT).show()
+            intent.removeExtra("killsuoji_trigger")
+        }
     }
 }
 
@@ -76,14 +83,6 @@ private fun KillSuojiApp() {
     var tab by remember { mutableIntStateOf(0) }
     var rootDetected by remember { mutableStateOf(false) }
     var isWorking by remember { mutableStateOf(prefs.getBoolean("is_working", false)) }
-    var accessibilityEnabled by remember { mutableStateOf(isVolumeDownServiceEnabled(context)) }
-
-    LaunchedEffect(tab) {
-        while (tab == 1) {
-            accessibilityEnabled = isVolumeDownServiceEnabled(context)
-            delay(700)
-        }
-    }
 
     LaunchedEffect(Unit) {
         rootDetected = withContext(Dispatchers.IO) { detectRootPermission() }
@@ -108,16 +107,20 @@ private fun KillSuojiApp() {
         ) { padding ->
             when (tab) {
                 0 -> HomeScreen(Modifier.padding(padding), rootDetected, isWorking)
-                1 -> if (rootDetected) LaunchScreen(
-                    Modifier.padding(padding), isWorking, accessibilityEnabled,
-                    onEnableAccessibility = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-                ) {
-                    if (!accessibilityEnabled && !isWorking) {
-                        Toast.makeText(context, "请先开启 KillSuoji 辅助功能权限", Toast.LENGTH_LONG).show()
-                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                1 -> if (rootDetected) LaunchScreen(Modifier.padding(padding), isWorking) {
+                    val next = !isWorking
+                    if (next) {
+                        try {
+                            context.startForegroundService(Intent(context, RootVolumeMonitorService::class.java))
+                            isWorking = true
+                            prefs.edit().putBoolean("is_working", true).apply()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Root 音量键监听启动失败：" + (e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
+                        }
                     } else {
-                        isWorking = !isWorking
-                        prefs.edit().putBoolean("is_working", isWorking).apply()
+                        context.stopService(Intent(context, RootVolumeMonitorService::class.java))
+                        isWorking = false
+                        prefs.edit().putBoolean("is_working", false).apply()
                     }
                 } else HomeScreen(Modifier.padding(padding), false, false)
                 else -> SettingsScreen(Modifier.padding(padding))
@@ -316,29 +319,16 @@ private fun UpdateCard() {
 }
 
 @Composable
-private fun LaunchScreen(
-    modifier: Modifier = Modifier,
-    isWorking: Boolean,
-    accessibilityEnabled: Boolean,
-    onEnableAccessibility: () -> Unit,
-    onToggle: () -> Unit
-) {
+private fun LaunchScreen(modifier: Modifier = Modifier, isWorking: Boolean, onToggle: () -> Unit) {
     Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("音量键拦截", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("Root 音量键拦截", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (accessibilityEnabled) "辅助功能已开启：工作中连续按 5 次音量下键即可返回 KillSuoji。"
-                    else "请先开启辅助功能权限，才能在其他应用中检测音量下键。",
+                    if (isWorking) "Root 监听运行中：在任意应用连续按 5 次音量下键，返回 KillSuoji 并提示拦截成功！"
+                    else "点击执行后由 Root 读取系统输入事件，不需要开启辅助功能权限。",
                     color = Color(0xFF68736D), fontSize = 14.sp
                 )
-                if (!accessibilityEnabled) {
-                    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onEnableAccessibility)) {
-                        Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) {
-                            Text("开启辅助功能权限", color = KsuAccent, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
             }
         }
         Spacer(Modifier.height(16.dp))
