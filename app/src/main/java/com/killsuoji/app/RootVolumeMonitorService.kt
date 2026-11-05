@@ -85,96 +85,13 @@ class RootVolumeMonitorService : Service() {
         val script = """#!/system/bin/sh
 PIDFILE=/data/local/tmp/killsuoji_overlay_watchdog.pid
 ENABLED=/data/local/tmp/killsuoji_overlay_enabled
-if [ -f "${'PIDFILE" ]; then
-  OLD_PID=$(cat "$PIDFILE" 2>/dev/null)
-  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then exit 0; fi
+if [ -f "${'$'}PIDFILE" ]; then
+  OLD_PID=$(${'$'}(cat "${'$'}PIDFILE" 2>/dev/null))
+  if [ -n "${'$'}OLD_PID" ] && kill -0 "${'$'}OLD_PID" 2>/dev/null; then exit 0; fi
 fi
-echo $ > "$PIDFILE"
-trap 'rm -f "$PIDFILE"' EXIT
-while [ -f "$ENABLED" ]; do
-  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
-    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
-  fi
-  sleep 3
-done
-}PIDFILE" ]; then
-  OLD_PID=${'(cat "$PIDFILE" 2>/dev/null)
-  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then exit 0; fi
-fi
-echo $ > "$PIDFILE"
-trap 'rm -f "$PIDFILE"' EXIT
-while [ -f "$ENABLED" ]; do
-  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
-    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
-  fi
-  sleep 3
-done
-}(cat "${'PIDFILE" 2>/dev/null)
-  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then exit 0; fi
-fi
-echo $ > "$PIDFILE"
-trap 'rm -f "$PIDFILE"' EXIT
-while [ -f "$ENABLED" ]; do
-  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
-    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
-  fi
-  sleep 3
-done
-}PIDFILE" 2>/dev/null)
-  if [ -n "${'OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then exit 0; fi
-fi
-echo $ > "$PIDFILE"
-trap 'rm -f "$PIDFILE"' EXIT
-while [ -f "$ENABLED" ]; do
-  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
-    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
-  fi
-  sleep 3
-done
-}OLD_PID" ] && kill -0 "${'OLD_PID" 2>/dev/null; then exit 0; fi
-fi
-echo $ > "$PIDFILE"
-trap 'rm -f "$PIDFILE"' EXIT
-while [ -f "$ENABLED" ]; do
-  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
-    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
-  fi
-  sleep 3
-done
-}OLD_PID" 2>/dev/null; then exit 0; fi
-fi
-echo ${' > "$PIDFILE"
-trap 'rm -f "$PIDFILE"' EXIT
-while [ -f "$ENABLED" ]; do
-  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
-    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
-  fi
-  sleep 3
-done
-} > "${'PIDFILE"
-trap 'rm -f "$PIDFILE"' EXIT
-while [ -f "$ENABLED" ]; do
-  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
-    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
-  fi
-  sleep 3
-done
-}PIDFILE"
-trap 'rm -f "${'PIDFILE"' EXIT
-while [ -f "$ENABLED" ]; do
-  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
-    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
-  fi
-  sleep 3
-done
-}PIDFILE"' EXIT
-while [ -f "${'ENABLED" ]; do
-  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
-    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
-  fi
-  sleep 3
-done
-}ENABLED" ]; do
+echo ${'$'}${'$'} > "${'$'}PIDFILE"
+trap 'rm -f "${'$'}PIDFILE"' EXIT
+while [ -f "${'$'}ENABLED" ]; do
   if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
     am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
   fi
