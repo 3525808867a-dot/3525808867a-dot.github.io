@@ -7,6 +7,7 @@ import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.hardware.input.InputManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -191,13 +192,17 @@ public final class RootWindowMain {
     }
 
     private static void drawCenteredText(Canvas canvas, String value, float cx, float cy, float size, int color) {
+        // Avoid Paint.getFontMetrics(): on some vendor Android builds this can enter
+        // Typeface resolution and stall/crash the root-owned overlay process.
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setTypeface(Typeface.DEFAULT);
         p.setColor(color);
         p.setTextSize(size);
         p.setTextAlign(Paint.Align.CENTER);
         p.setFakeBoldText(true);
-        Paint.FontMetrics fm = p.getFontMetrics();
-        canvas.drawText(value, cx, cy - (fm.ascent + fm.descent) / 2f, p);
+        // Approximate the baseline without querying font metrics. This keeps the
+        // text path independent from the failing Typeface metrics lookup.
+        canvas.drawText(value, cx, cy + size * 0.34f, p);
     }
 
     private static void drawNormalButton() {
