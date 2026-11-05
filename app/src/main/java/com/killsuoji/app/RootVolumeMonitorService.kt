@@ -15,7 +15,6 @@ import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
-import android.util.Base64
 import android.widget.TextView
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -88,35 +87,46 @@ class RootVolumeMonitorService : Service() {
         }
     }
 
-    /** Root 守护进程独立于应用进程运行；检测悬浮窗服务进程退出后重新拉起。 */
+    /** 通过 SukiSU 模块启动独立 Root 用户态守护进程；状态保存在 /data/adb，跨重启保留。 */
     private fun startRootWatchdog() {
-        val script = """#!/system/bin/sh
-PIDFILE=/data/local/tmp/killsuoji_overlay_watchdog.pid
-ENABLED=/data/local/tmp/killsuoji_overlay_enabled
-if [ -f "${'$'}PIDFILE" ]; then
-  OLD_PID=${'$'}(cat "${'$'}PIDFILE" 2>/dev/null)
-  if [ -n "${'$'}OLD_PID" ] && kill -0 "${'$'}OLD_PID" 2>/dev/null; then exit 0; fi
-fi
-echo ${'$'}${'$'} > "${'$'}PIDFILE"
-trap 'rm -f "${'$'}PIDFILE"' EXIT
-while [ -f "${'$'}ENABLED" ]; do
-  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
-    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
-  fi
-  sleep 3
-done
-"""
-        val encoded = Base64.encodeToString(script.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-        val command = "echo '$encoded' | base64 -d > /data/local/tmp/killsuoji_overlay_watchdog.sh && chmod 700 /data/local/tmp/killsuoji_overlay_watchdog.sh && touch /data/local/tmp/killsuoji_overlay_enabled && (nohup sh /data/local/tmp/killsuoji_overlay_watchdog.sh >/dev/null 2>&1 </dev/null & )"
+        val command = """
+            MODDIR=/data/adb/modules/killsuoji_overlay
+            STATE_DIR=/data/adb/killsuoji_overlay
+            mkdir -p "$STATE_DIR" || exit 1
+            if [ ! -f "$MODDIR/watchdog.sh" ]; then
+              echo MODULE_MISSING
+              exit 2
+            fi
+            touch "$STATE_DIR/enabled"
+            chmod 700 "$MODDIR/watchdog.sh"
+            nohup sh "$MODDIR/watchdog.sh" >/dev/null 2>&1 </dev/null &
+        """.trimIndent()
         try {
             val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
-            process.waitFor(5, TimeUnit.SECONDS)
-        } catch (_: Exception) { }
+            val finished = process.waitFor(5, TimeUnit.SECONDS)
+            if (!finished) {
+                process.destroyForcibly()
+                updateNotification("Root 守护进程启动超时")
+            } else if (process.exitValue() != 0) {
+                updateNotification("未检测到 SukiSU 模块，请先安装 KillSuoji Overlay Keeper 1.0.0 beta")
+            }
+        } catch (_: Exception) {
+            updateNotification("无法启动 Root 守护进程，请检查 SukiSU Root 授权")
+        }
     }
 
     private fun stopRootWatchdog() {
         try {
-            val command = "rm -f /data/local/tmp/killsuoji_overlay_enabled; if [ -f /data/local/tmp/killsuoji_overlay_watchdog.pid ]; then kill $(cat /data/local/tmp/killsuoji_overlay_watchdog.pid) 2>/dev/null; rm -f /data/local/tmp/killsuoji_overlay_watchdog.pid; fi"
+            val command = """
+                STATE_DIR=/data/adb/killsuoji_overlay
+                PIDFILE="$STATE_DIR/watchdog.pid"
+                rm -f "$STATE_DIR/enabled"
+                if [ -f "$PIDFILE" ]; then
+                  PID=$(cat "$PIDFILE" 2>/dev/null)
+                  [ -n "$PID" ] && kill "$PID" 2>/dev/null
+                  rm -f "$PIDFILE"
+                fi
+            """.trimIndent()
             ProcessBuilder("su", "-c", command).start().waitFor(3, TimeUnit.SECONDS)
         } catch (_: Exception) { }
     }
