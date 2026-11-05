@@ -273,7 +273,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("V${BuildConfig.VERSION_NAME} 正式版", fontSize = 13.sp, color = Color(0xFF68736D))
+                        Text("V${BuildConfig.VERSION_NAME} 调试版", fontSize = 13.sp, color = Color(0xFF68736D))
                     }
                     
                 }
