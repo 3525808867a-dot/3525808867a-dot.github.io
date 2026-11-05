@@ -33,22 +33,27 @@ jobs:
         run: |
           gradle projects
           gradle :permission-probe:tasks --all
-      - name: Build diagnostic APK
-        run: gradle :permission-probe:assembleDebug
+      - name: Build diagnostic and full PR-05 APKs
+        run: |
+          gradle :permission-probe:assembleDebug
+          gradle :app:assembleDebug
       - name: Publish APK to prototype branch
         run: |
           mkdir -p downloads
           cp permission-probe/build/outputs/apk/debug/permission-probe-debug.apk downloads/killsuoji-root-permission-probe.apk
+          cp app/build/outputs/apk/debug/app-debug.apk downloads/2.6.3-PR-05.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add downloads/killsuoji-root-permission-probe.apk
+          git add downloads/killsuoji-root-permission-probe.apk downloads/2.6.3-PR-05.apk
           if ! git diff --cached --quiet; then
             git commit -m "Publish root permission probe APK"
             git push
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: killsuoji-root-permission-probe
-          path: permission-probe/build/outputs/apk/debug/permission-probe-debug.apk
+          name: killsuoji-pr-05-apks
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            permission-probe/build/outputs/apk/debug/permission-probe-debug.apk
           if-no-files-found: error
           retention-days: 7
