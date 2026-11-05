@@ -38,13 +38,13 @@ jobs:
         run: |
           gradle projects
           gradle :permission-probe:tasks --all
-      - name: Build diagnostic and full PR-07 APKs
+      - name: Build diagnostic and full V3.0.0 beta APKs
         run: |
           gradle :permission-probe:assembleDebug
           gradle :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: killsuoji-pr-07-apks
+          name: killsuoji-v3.0.0-beta-apks
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             permission-probe/build/outputs/apk/debug/permission-probe-debug.apk
@@ -54,7 +54,7 @@ jobs:
         run: |
           mkdir -p downloads
           cp permission-probe/build/outputs/apk/debug/permission-probe-debug.apk downloads/killsuoji-root-permission-probe.apk
-          cp app/build/outputs/apk/debug/app-debug.apk downloads/2.6.3-PR-07.apk
+          cp app/build/outputs/apk/debug/app-debug.apk downloads/3.0.0-beta.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add downloads/killsuoji-root-permission-probe.apk downloads/2.6.3-PR-07.apk
