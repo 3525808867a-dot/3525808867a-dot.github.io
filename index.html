@@ -43,7 +43,7 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  const downloadStateKey='killsuoji-download-state';
  const autoCheckKey='killsuoji-auto-check-enabled-v2';
  const autoCheckButton=document.getElementById('auto-check-toggle');
- const currentVersion='2.3.6 Beta';
+ const currentVersion='2.4.0 Beta';
  let autoCheckEnabled=true,autoCheckTimer=null;
  try{autoCheckEnabled=localStorage.getItem(autoCheckKey)!=='false';}catch(e){}
  function syncAutoCheckButton(){
