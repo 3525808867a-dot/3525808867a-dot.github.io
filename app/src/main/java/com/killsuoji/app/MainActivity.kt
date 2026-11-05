@@ -129,8 +129,7 @@ private fun KillSuojiApp() {
                 val label = try { pm.getApplicationLabel(info).toString() } catch (_: Exception) { pkg }
                 val suki = label.contains("SukiSU", ignoreCase = true) ||
                     pkg.contains("sukisu", ignoreCase = true) || pkg == "me.weishu.kernelsu"
-                val userApp = (info.flags and ApplicationInfo.FLAG_SYSTEM) == 0
-                if (userApp || suki || pkg == context.packageName) InstalledApp(pkg, label, suki) else null
+                InstalledApp(pkg, label, suki)
             }.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
         }
         installedApps.clear()
