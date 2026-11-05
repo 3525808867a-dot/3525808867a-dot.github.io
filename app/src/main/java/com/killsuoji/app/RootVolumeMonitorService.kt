@@ -117,8 +117,8 @@ class RootVolumeMonitorService : Service() {
             try {
                 val killedCount = cleanupThirdPartyProcesses()
                 if (killedCount < 0) {
-                    updateNotification("Root 清理失败，白名单校验或 Root 检查未通过；未执行启动脚本")
-                    mainHandler.post { Toast.makeText(this, "Root 清理失败，已停止操作，启动脚本未执行", Toast.LENGTH_LONG).show() }
+                    updateNotification("Root 清理失败，未执行启动脚本；请检查授权和日志")
+                    mainHandler.post { Toast.makeText(this, "Root 清理失败，未执行启动脚本", Toast.LENGTH_LONG).show() }
                     return@thread
                 }
                 val scriptCheck = ProcessBuilder("su", "-c",
@@ -143,10 +143,8 @@ class RootVolumeMonitorService : Service() {
                     updateNotification("启动脚本执行失败（${launch.exitValue()}）：${output.take(100)}")
                     mainHandler.post { Toast.makeText(this, "启动脚本执行失败，退出码 ${launch.exitValue()}", Toast.LENGTH_LONG).show() }
                 }
-            } catch (e: Exception) {
-                updateNotification("Root 清理或启动脚本失败：" + (e.message ?: "未知错误"))
-                mainHandler.post { Toast.makeText(this, "执行失败：" + (e.message ?: "未知错误"), Toast.LENGTH_LONG).show() }
-            } finally { scriptRunning = false }
+            } catch (e: Exception) { updateNotification("Root 清理或启动脚本失败：" + (e.message ?: "未知错误")) }
+            finally { scriptRunning = false }
         }
     }
 
@@ -160,394 +158,1968 @@ class RootVolumeMonitorService : Service() {
             val rootCommand = """
                 mkdir -p /data/adb/killsuoji_overlay || exit 19
                 WLFILE=/data/local/tmp/killsuoji_safe_whitelist.txt
-                FAILFILE=/data/local/tmp/killsuoji_cleanup_failed.${'@
-                echo '\${encoded}' | base64 -d > "@@WLFILE" || exit 20
-                : > "@@FAILFILE" || exit 22
-                if [ ! -s "@@WLFILE" ] || ! grep -qx 'com.killsuoji.app' "@@WLFILE"; then
+                FAILFILE=/data/local/tmp/killsuoji_cleanup_failed.${'$'}${'$'}
+                echo '${encoded}' | base64 -d > "${'
+                : > "${'
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}WLFILE" || exit 20
+                : > "${'$'}FAILFILE" || exit 22
+                UID_NOW=${'$'}(id -u 2>/dev/null)
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}FAILFILE" || exit 22
+                if [ ! -s "${'
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}WLFILE" || exit 20
+                : > "${'$'}FAILFILE" || exit 22
+                UID_NOW=${'$'}(id -u 2>/dev/null)
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}WLFILE" ] || ! grep -qx 'com.killsuoji.app' "${'
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}WLFILE" || exit 20
+                : > "${'$'}FAILFILE" || exit 22
+                UID_NOW=${'$'}(id -u 2>/dev/null)
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}WLFILE"; then
                   echo "WHITELIST_INVALID: aborting cleanup" >> /data/adb/killsuoji_overlay/root-window.log
-                  rm -f "@@WLFILE" "@@FAILFILE"
+                  rm -f "${'
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}WLFILE" || exit 20
+                : > "${'$'}FAILFILE" || exit 22
+                UID_NOW=${'$'}(id -u 2>/dev/null)
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}WLFILE" "${'
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}WLFILE" || exit 20
+                : > "${'$'}FAILFILE" || exit 22
+                UID_NOW=${'$'}(id -u 2>/dev/null)
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}FAILFILE"
                   exit 23
                 fi
-                UID_NOW=@@(id -u 2>/dev/null)
-                if [ "@@UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" @@(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
+                UID_NOW=${'
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
                   pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
                 )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}@
-                echo '\${encoded}' | base64 -d > "${'WLFILE" || exit 20
-                : > "@@FAILFILE" || exit 22
-                if [ ! -s "@@WLFILE" ] || ! grep -qx 'com.killsuoji.app' "@@WLFILE"; then
-                  echo "WHITELIST_INVALID: aborting cleanup" >> /data/adb/killsuoji_overlay/root-window.log
-                  rm -f "@@WLFILE" "@@FAILFILE"
-                  exit 23
-                fi
-                UID_NOW=@@(id -u 2>/dev/null)
-                if [ "@@UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" @@(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}WLFILE" || exit 20
+                : > "${'$'}FAILFILE" || exit 22
+                UID_NOW=${'$'}(id -u 2>/dev/null)
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
                   pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
                 )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}WLFILE" || exit 20
-                : > "${'FAILFILE" || exit 22
-                if [ ! -s "@@WLFILE" ] || ! grep -qx 'com.killsuoji.app' "@@WLFILE"; then
-                  echo "WHITELIST_INVALID: aborting cleanup" >> /data/adb/killsuoji_overlay/root-window.log
-                  rm -f "@@WLFILE" "@@FAILFILE"
-                  exit 23
-                fi
-                UID_NOW=@@(id -u 2>/dev/null)
-                if [ "@@UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" @@(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}(id -u 2>/dev/null)
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
                   pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
                 )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}FAILFILE" || exit 22
-                if [ ! -s "${'WLFILE" ] || ! grep -qx 'com.killsuoji.app' "@@WLFILE"; then
-                  echo "WHITELIST_INVALID: aborting cleanup" >> /data/adb/killsuoji_overlay/root-window.log
-                  rm -f "@@WLFILE" "@@FAILFILE"
-                  exit 23
-                fi
-                UID_NOW=@@(id -u 2>/dev/null)
-                if [ "@@UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" @@(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
+            """.trimIndent()
+            val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
+            }
+        } catch (_: Exception) { -1 }
+    }
+    private fun startSafetyMode() {
+        if (safeModeActive) return
+        safeModeActive = true
+        val generation = ++safeModeGeneration
+        safeModeStartedAt = SystemClock.elapsedRealtime()
+        try {
+            ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        updateNotification("安全模式已启动：仅持续清理非白名单第三方进程")
+        safeModeThread = thread(name = "KillSuoji-Safety-Cleanup") {
+            try {
+                // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
+                try {
+                    val stopShizuku = ProcessBuilder("su", "-c",
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        .redirectErrorStream(true).start()
+                    stopShizuku.waitFor(10, TimeUnit.SECONDS)
+                } catch (_: Exception) { }
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
+                    val count = cleanupThirdPartyProcesses()
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
+                    Thread.sleep(1800L)
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                if (generation == safeModeGeneration) safeModeThread = null
+            }
+        }
+    }
+
+    private fun stopSafetyMode() {
+        val wasActive = safeModeActive
+        safeModeActive = false
+        safeModeGeneration++
+        safeModeThread?.interrupt()
+        safeModeThread = null
+        try {
+            ProcessBuilder("su", "-c", "rm -f /data/adb/killsuoji_overlay/safety_mode")
+                .start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+        if (!wasActive) return
+        val seconds = ((SystemClock.elapsedRealtime() - safeModeStartedAt) / 1000L).coerceAtLeast(0L)
+        updateNotification("安全模式已取消，持续 ${seconds} 秒")
+        mainHandler.post {
+            Toast.makeText(this, "安全模式已运行 ${seconds} 秒", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun startForegroundCompat(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun createNotificationChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "KillSuoji 工作状态", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
+        val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
+        return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    override fun onDestroy() {
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
+        const val ACTION_ENTER_SAFE_MODE = "com.killsuoji.app.action.ENTER_SAFE_MODE"
+        const val ACTION_CANCEL_SAFE_MODE = "com.killsuoji.app.action.CANCEL_SAFE_MODE"
+        private const val CHANNEL_ID = "killsuoji_root_monitor"
+        private const val NOTIFICATION_ID = 2401
+    }
+}
+
+/** 快捷设置磁贴备用入口。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}}WLFILE" || exit 20
+                : > "${'$'}FAILFILE" || exit 22
+                UID_NOW=${'$'}(id -u 2>/dev/null)
+                if [ "${'$'}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
+                WL=" ${'$'}(tr '\n' ' ' < "${'$'}WLFILE") "
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'$'}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
+                COUNT=${'$'}(
                   pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) echo "WHITELIST_SKIP:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
+                    if am force-stop --user all "${'$'}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
+                    else echo "ROOT_STOP_FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'$'}pkg" >> "${'$'}FAILFILE"; echo 0; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
                 )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}WLFILE" ] || ! grep -qx 'com.killsuoji.app' "${'WLFILE"; then
-                  echo "WHITELIST_INVALID: aborting cleanup" >> /data/adb/killsuoji_overlay/root-window.log
-                  rm -f "@@WLFILE" "@@FAILFILE"
-                  exit 23
-                fi
-                UID_NOW=@@(id -u 2>/dev/null)
-                if [ "@@UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" @@(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}WLFILE"; then
-                  echo "WHITELIST_INVALID: aborting cleanup" >> /data/adb/killsuoji_overlay/root-window.log
-                  rm -f "${'WLFILE" "@@FAILFILE"
-                  exit 23
-                fi
-                UID_NOW=@@(id -u 2>/dev/null)
-                if [ "@@UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" @@(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}WLFILE" "${'FAILFILE"
-                  exit 23
-                fi
-                UID_NOW=@@(id -u 2>/dev/null)
-                if [ "@@UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" @@(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}FAILFILE"
-                  exit 23
-                fi
-                UID_NOW=${'(id -u 2>/dev/null)
-                if [ "@@UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" @@(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}(id -u 2>/dev/null)
-                if [ "${'UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" @@(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}UID_NOW" != "0" ]; then echo "ROOT_REQUIRED:uid=${'UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" @@(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log; exit 21; fi
-                WL=" ${'(tr '\n' ' ' < "@@WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}(tr '\n' ' ' < "${'WLFILE") "
-                echo "[@@(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}WLFILE") "
-                echo "[${'(date +%s)] ROOT_CLEANUP_BEGIN uid=@@UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}(date +%s)] ROOT_CLEANUP_BEGIN uid=${'UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=@@(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}UID_NOW" >> /data/adb/killsuoji_overlay/root-window.log
-                COUNT=${'(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "@@pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                    [ -n "${'pkg" ] || continue
-                    case "@@WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}pkg" ] || continue
-                    case "${'WL" in *" @@pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}WL" in *" ${'pkg "*) echo "WHITELIST_SKIP:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}pkg "*) echo "WHITELIST_SKIP:${'pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "@@pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}pkg" >> /data/adb/killsuoji_overlay/root-window.log; continue ;; esac
-                    if am force-stop --user all "${'pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}pkg" >/dev/null 2>&1; then echo "ROOT_STOPPED_PACKAGE:${'pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:@@pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo 1
-                    else echo "ROOT_STOP_FAILED:${'pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "@@pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}pkg" >> /data/adb/killsuoji_overlay/root-window.log; echo "${'pkg" >> "@@FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}pkg" >> "${'FAILFILE"; echo 0; fi
-                  done | awk '{total+=@@1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}FAILFILE"; echo 0; fi
-                  done | awk '{total+=${'1} END {print total+0}'
-                )
-                FAILS=@@(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}1} END {print total+0}'
-                )
-                FAILS=${'(wc -l < "@@FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}(wc -l < "${'FAILFILE" | tr -d ' ')
-                echo "[@@(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}FAILFILE" | tr -d ' ')
-                echo "[${'(date +%s)] ROOT_CLEANUP_END stopped_package_count=@@COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'COUNT failed_package_count=@@FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}COUNT failed_package_count=${'FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "@@FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
-                if [ "${'FAILS" -gt 0 ]; then echo -1; else echo "@@COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}FAILS" -gt 0 ]; then echo -1; else echo "${'COUNT"; fi
-                rm -f "@@WLFILE" "@@FAILFILE"
-            """.trimIndent()}COUNT"; fi
-                rm -f "${'WLFILE" "@@FAILFILE"
-            """.trimIndent()}WLFILE" "${'FAILFILE"
-            """.trimIndent()}FAILFILE"
+                FAILS=${'$'}(wc -l < "${'$'}FAILFILE" | tr -d ' ')
+                echo "[${'$'}(date +%s)] ROOT_CLEANUP_END stopped_package_count=${'$'}COUNT failed_package_count=${'$'}FAILS" >> /data/adb/killsuoji_overlay/root-window.log
+                if [ "${'$'}FAILS" -gt 0 ]; then echo -1; else echo "${'$'}COUNT"; fi
+                rm -f "${'$'}WLFILE" "${'$'}FAILFILE"
             """.trimIndent()
             val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
             if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); -1 } else {
