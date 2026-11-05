@@ -127,7 +127,11 @@ class RootVolumeMonitorService : Service() {
                         else "启动脚本执行失败（${launch.exitValue()}）：${output.take(100)}")
                 }
                 mainHandler.post {
-                    Toast.makeText(this, "已杀死 ${killedCount} 个非白名单进程", Toast.LENGTH_SHORT).show()
+                    if (killedCount >= 0) {
+                        Toast.makeText(this, "已杀死 ${killedCount} 个非白名单进程", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "进程清理失败，请查看启动日志", Toast.LENGTH_LONG).show()
+                    }
                 }
             } catch (e: Exception) {
                 updateNotification("结束第三方进程或执行启动脚本失败：" + (e.message ?: "未知错误"))
@@ -160,12 +164,12 @@ class RootVolumeMonitorService : Service() {
             val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
             if (!process.waitFor(60, TimeUnit.SECONDS)) {
                 process.destroyForcibly()
-                0
+                -1
             } else {
                 val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
-                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: 0
+                output.lineSequence().lastOrNull()?.trim()?.toIntOrNull() ?: -1
             }
-        } catch (_: Exception) { 0 }
+        } catch (_: Exception) { -1 }
     }
 
     private fun startSafetyMode() {
@@ -184,7 +188,8 @@ class RootVolumeMonitorService : Service() {
                 } catch (_: Exception) { }
                 while (safeModeActive && !Thread.currentThread().isInterrupted) {
                     val count = cleanupThirdPartyProcesses()
-                    updateNotification("安全模式运行中：本轮结束 $count 个非白名单第三方进程")
+                    updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
+                        else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
                     Thread.sleep(1800L)
                 }
             } catch (_: InterruptedException) {
