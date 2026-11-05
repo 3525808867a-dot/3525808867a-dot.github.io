@@ -1,8 +1,19 @@
 name: Build KillSuoji root permission probe
+# Stable V3.1.0 signing and PR build support
 
 on:
   push:
-    branches: [root-surface-prototype]
+    branches: [root-surface-prototype, release/v3.1.0-formal]
+    paths:
+      - "app/**"
+      - "module/**"
+      - "permission-probe/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/root-prototype-build.yml"
+  pull_request:
+    branches: [main]
     paths:
       - "app/**"
       - "module/**"
@@ -25,12 +36,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
       - name: Install Android SDK packages
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+      - name: Configure stable cover-install signing key
+        env:
+          KILLSUOJI_KEYSTORE_BASE64: ${{ secrets.KILLSUOJI_KEYSTORE_BASE64 }}
+          KILLSUOJI_STORE_PASSWORD: ${{ secrets.KILLSUOJI_STORE_PASSWORD }}
+          KILLSUOJI_KEY_ALIAS: ${{ secrets.KILLSUOJI_KEY_ALIAS }}
+          KILLSUOJI_KEY_PASSWORD: ${{ secrets.KILLSUOJI_KEY_PASSWORD }}
+        run: |
+          test -n "$KILLSUOJI_KEYSTORE_BASE64"
+          test -n "$KILLSUOJI_STORE_PASSWORD"
+          test -n "$KILLSUOJI_KEY_ALIAS"
+          test -n "$KILLSUOJI_KEY_PASSWORD"
+          echo "$KILLSUOJI_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/killsuoji-release.keystore"
+          echo "KILLSUOJI_KEYSTORE_FILE=$RUNNER_TEMP/killsuoji-release.keystore" >> "$GITHUB_ENV"
+          echo "KILLSUOJI_STORE_PASSWORD=$KILLSUOJI_STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KILLSUOJI_KEY_ALIAS=$KILLSUOJI_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "KILLSUOJI_KEY_PASSWORD=$KILLSUOJI_KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "Stable signing key configured."
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
@@ -38,13 +68,13 @@ jobs:
         run: |
           gradle projects
           gradle :permission-probe:tasks --all
-      - name: Build diagnostic and full V3.0.0 beta APKs
+      - name: Build diagnostic and full V3.1.0 formal APKs
         run: |
           gradle :permission-probe:assembleDebug
           gradle :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: killsuoji-v3.0.0-beta-apks
+          name: killsuoji-v3.1.0-formal-apks
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             permission-probe/build/outputs/apk/debug/permission-probe-debug.apk
@@ -54,11 +84,11 @@ jobs:
         run: |
           mkdir -p downloads
           cp permission-probe/build/outputs/apk/debug/permission-probe-debug.apk downloads/killsuoji-root-permission-probe.apk
-          cp app/build/outputs/apk/debug/app-debug.apk downloads/3.0.0-beta.apk
+          cp app/build/outputs/apk/debug/app-debug.apk downloads/3.1.0.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add downloads/killsuoji-root-permission-probe.apk downloads/3.0.0-beta.apk
+          git add downloads/killsuoji-root-permission-probe.apk downloads/3.1.0.apk
           if ! git diff --cached --quiet; then
             git commit -m "Publish root permission probe APK"
-            git push
+            git push origin "HEAD:${{ github.head_ref || github.ref_name }}"
           fi
