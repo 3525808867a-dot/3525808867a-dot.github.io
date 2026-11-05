@@ -80,7 +80,7 @@ jobs:
 
           ## 模块信息
           - 模块版本：1.0.0 beta
-          - 作者：酷安 ddddd
+          - 作者：酷安ddddd
           - 仅支持 SukiSU 模块管理器格式；安装后需在管理器中启用模块并授予 KillSuoji Root 权限。
 
           ## 注意
@@ -121,7 +121,7 @@ jobs:
                   "模块仅安装在 /data/adb/modules，不修改系统分区。"
               ],
               "module_version": "1.0.0 beta",
-              "module_author": "酷安 ddddd",
+              "module_author": "酷安ddddd",
               "module": f"https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v{number}/killsuoji-overlay-1.0.0-beta.zip",
               "notice": "V" + version + " 已发布；SukiSU 模块版本 1.0.0 beta。"
           })
