@@ -2,9 +2,6 @@ package com.killsuoji.app;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.RectF;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
@@ -24,9 +21,6 @@ import android.view.Surface;
 import android.view.SurfaceControl;
 import android.view.WindowManager;
 import android.util.Log;
-import android.util.Base64;
-import java.io.InputStream;
-import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Method;
 import java.io.FileWriter;
 import java.io.PrintWriter;
@@ -40,8 +34,7 @@ public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
     private static final String SAFETY_FILE = "/data/adb/killsuoji_overlay/safety_mode";
-    private static final String BUILD_ID = "3.1.3-overlay-bitmap-single-thread";
-    private static Bitmap stopLabel, cancelLabel, safetyLabel;
+    private static final String BUILD_ID = "3.1.2-PR-no-text-red-safety";
     private static SurfaceControl monitorSurface;
     private static SurfaceControl buttonControl;
     private static Surface buttonSurface;
@@ -104,7 +97,6 @@ public final class RootWindowMain {
             Object activityThread = activityThreadClass.getMethod("systemMain").invoke(null);
             Context context = (Context) activityThreadClass.getMethod("getSystemContext").invoke(activityThread);
             writeLog("System context acquired", null);
-            loadOverlayLabels(context);
             InputManager inputManager = (InputManager) context.getSystemService(Context.INPUT_SERVICE);
             writeLog("Creating gesture input monitor", null);
             monitor = call(inputManager, "monitorGestureInput", "KillSuoji-Root-Overlay", Display.DEFAULT_DISPLAY);
@@ -198,41 +190,6 @@ public final class RootWindowMain {
         call(tx, "close");
     }
 
-    private static void loadOverlayLabels(Context context) throws Exception {
-        InputStream input = context.getAssets().open("overlay_labels.png.b64");
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        byte[] buffer = new byte[4096];
-        int count;
-        while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-        input.close();
-        byte[] png = Base64.decode(output.toByteArray(), Base64.DEFAULT);
-        Bitmap sheet = BitmapFactory.decodeByteArray(png, 0, png.length);
-        if (sheet == null || sheet.getWidth() != 244 || sheet.getHeight() != 158) {
-            throw new IllegalStateException("Overlay label bitmap sheet is invalid");
-        }
-        stopLabel = Bitmap.createBitmap(sheet, 0, 0, 116, 57);
-        cancelLabel = Bitmap.createBitmap(sheet, 0, 57, 244, 43);
-        safetyLabel = Bitmap.createBitmap(sheet, 0, 100, 228, 58);
-        sheet.recycle();
-        writeLog("Pre-rendered overlay labels loaded", null);
-    }
-
-    private static void drawCenteredText(Canvas canvas, String value, float cx, float cy, float size, int color) {
-        Bitmap bitmap;
-        float referenceSize;
-        if ("停止".equals(value)) { bitmap = stopLabel; referenceSize = 56f; }
-        else if ("取消安全模式".equals(value)) { bitmap = cancelLabel; referenceSize = 40f; }
-        else if ("安全模式".equals(value)) { bitmap = safetyLabel; referenceSize = 56f; }
-        else return;
-        if (bitmap == null || bitmap.isRecycled()) return;
-        float scale = size / referenceSize;
-        float w = bitmap.getWidth() * scale;
-        float h = bitmap.getHeight() * scale;
-        RectF dst = new RectF(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f);
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        canvas.drawBitmap(bitmap, null, dst, paint);
-    }
-
     private static void drawNormalButton() {
         if (buttonSurface == null) {
             writeLog("Cannot draw normal button: drawing Surface is null", null);
@@ -244,14 +201,12 @@ public final class RootWindowMain {
             canvas = buttonSurface.lockCanvas(null);
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
             drawNormalButtonBackground(canvas);
-            drawCenteredText(canvas, "停止", width / 2f, mainHeight / 2f, 17f * density, Color.WHITE);
             if (safetyMode) {
                 int ch = Math.max(1, (int)(25f * density));
-                drawCenteredText(canvas, "取消安全模式", width / 2f, cancelTop + ch / 2f, 12f * density, Color.WHITE);
             }
             buttonSurface.unlockCanvasAndPost(canvas);
             canvas = null;
-            writeLog("Normal button background and labels posted in one pass", null);
+            writeLog("Normal button background posted; text rendering disabled for PR diagnosis", null);
         } catch (Throwable error) {
             writeLog("Normal button single-pass draw failed", error);
             if (canvas != null) {
@@ -262,12 +217,12 @@ public final class RootWindowMain {
 
     private static void drawNormalButtonBackground(Canvas canvas) {
         Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bg.setColor(Color.BLACK);
+        bg.setColor(safetyMode ? Color.RED : Color.BLACK);
         canvas.drawRoundRect(0, 0, width, mainHeight, 8f * density, 8f * density, bg);
         if (safetyMode) {
             int ch = Math.max(1, (int)(25f * density));
             Paint cbg = new Paint(Paint.ANTI_ALIAS_FLAG);
-            cbg.setColor(Color.rgb(75, 24, 30));
+            cbg.setColor(Color.RED);
             canvas.drawRoundRect(0, cancelTop, width, cancelTop + ch, 7f * density, 7f * density, cbg);
         }
     }
@@ -306,7 +261,6 @@ public final class RootWindowMain {
             drawSafetyBanner();
             int safeTop = Math.max(0, top - safetyHeight - Math.max(2, (int)(5f*density)));
             applySurface(safetyControl, left, safeTop, Integer.MAX_VALUE - 1, width, safetyHeight);
-            animateSafetyBanner();
             writeLog("Passive safety overlay attached without touch or drag handling", null);
         } catch (Throwable error) { writeLog("Safety overlay creation failed", error); removeSafetySurface(); }
     }
@@ -318,27 +272,13 @@ public final class RootWindowMain {
             canvas = safetySurface.lockCanvas(null);
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
             Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
-            bg.setColor(Color.BLACK);
+            bg.setColor(Color.RED);
             canvas.drawRoundRect(0, 0, width, safetyHeight, 8f*density, 8f*density, bg);
-            int[] colors = { Color.rgb(255,65,85), Color.rgb(255,145,40), Color.rgb(255,220,55), Color.rgb(65,220,110), Color.rgb(55,165,255), Color.rgb(175,95,255) };
-            drawCenteredText(canvas, "安全模式", width/2f, safetyHeight/2f, 17f*density, colors[rainbowIndex % colors.length]);
             safetySurface.unlockCanvasAndPost(canvas);
         } catch (Throwable error) {
             try { if (canvas != null) safetySurface.unlockCanvasAndPost(canvas); } catch (Throwable ignored) {}
             writeLog("Safety banner draw failed", error);
         }
-    }
-
-    private static void animateSafetyBanner() {
-        if (!safetyMode || safetySurface == null || mainHandler == null) return;
-        mainHandler.postDelayed(new Runnable() {
-            @Override public void run() {
-                if (!safetyMode || safetySurface == null) return;
-                rainbowIndex = (rainbowIndex + 1) % 6;
-                drawSafetyBanner();
-                animateSafetyBanner();
-            }
-        }, 170L);
     }
 
     private static void cancelSafetyMode() {
