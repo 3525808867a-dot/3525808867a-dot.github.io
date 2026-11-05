@@ -108,6 +108,16 @@ public final class RootPermissionProbe extends Activity {
                     (sf == PackageManager.PERMISSION_GRANTED ? "允许" : "拒绝"));
             System.out.println("ACCESS_INPUT_FLINGER：" +
                     (input == PackageManager.PERMISSION_GRANTED ? "允许" : "拒绝"));
+            int monitorPermission = context.checkPermission(
+                    "android.permission.MONITOR_INPUT", pid, uid);
+            System.out.println("MONITOR_INPUT：" +
+                    (monitorPermission == PackageManager.PERMISSION_GRANTED ? "允许" : "拒绝"));
+            System.out.flush();
+            if (monitorPermission == PackageManager.PERMISSION_GRANTED) {
+                RootSurfaceInputProbe.run(context);
+            } else {
+                System.out.println("系统未授予 MONITOR_INPUT，无法创建手势监视通道。");
+            }
         } catch (Throwable error) {
             System.out.println("检测异常：" + Log.getStackTraceString(error));
         }
