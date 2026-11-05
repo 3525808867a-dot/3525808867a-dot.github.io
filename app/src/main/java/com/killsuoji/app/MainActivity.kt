@@ -149,9 +149,9 @@ private fun KillSuojiApp() {
                             context.startForegroundService(Intent(context, RootVolumeMonitorService::class.java))
                             isWorking = true
                             prefs.edit().putBoolean("is_working", true).apply()
-                            Toast.makeText(context, "已启动 Root 音量下键监听", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "工作状态已启动，点击 killzuoji 悬浮窗执行启动脚本", Toast.LENGTH_SHORT).show()
                         } catch (e: Exception) {
-                            Toast.makeText(context, "Root 音量键监听启动失败：" + (e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "工作状态启动失败：" + (e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
                         }
                     } else {
                         context.stopService(Intent(context, RootVolumeMonitorService::class.java))
@@ -205,7 +205,11 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.5.2 正式版", fontSize = 13.sp, color = Color(0xFF68736D))
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("V2.5.3 PR", fontSize = 13.sp, color = Color(0xFF68736D))
+                        Text("当前为PR调试构建，请勿在生产环境中使用！",
+                            fontSize = 12.sp, color = Color(0xFFD32F2F), fontWeight = FontWeight.SemiBold)
+                    }
                     
                 }
             }
@@ -359,10 +363,10 @@ private fun LaunchScreen(modifier: Modifier = Modifier, isWorking: Boolean, onTo
     Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Root 音量键拦截", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("Root 悬浮窗启动", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (isWorking) "Root 监听运行中：在任意应用或桌面 3 秒内连续按 5 次音量下键，先清理前台和后台第三方应用进程，再启动 KillSuoji。"
-                    else "点击执行后由 Root 监听音量下键；五次触发后由 Root 执行 /data/local/tmp/launch_killapp.sh。",
+                    if (isWorking) "工作状态运行中。点击固定在底部“首页”文字位置的 killzuoji 悬浮窗，即可由 Root 执行 /data/local/tmp/launch_killapp.sh。"
+                    else "点击执行开启工作状态并显示 killzuoji 悬浮窗；之后点击悬浮窗即可由 Root 执行启动脚本。",
                     color = Color(0xFF68736D), fontSize = 14.sp
                 )
             }
