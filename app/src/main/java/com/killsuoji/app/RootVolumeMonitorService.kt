@@ -192,7 +192,7 @@ class RootVolumeMonitorService : Service() {
                 // Shizuku 是第三方服务；按用户要求在进入安全模式时强制停止其服务与服务端进程。
                 try {
                     val stopShizuku = ProcessBuilder("su", "-c",
-                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
+                        "am force-stop moe.shizuku.privileged.api >/dev/null 2>&1; pkill -9 -f '[s]hizuku_server' >/dev/null 2>&1; echo SHIZUKU_STOP_ATTEMPTED")
                         .redirectErrorStream(true).start()
                     stopShizuku.waitFor(10, TimeUnit.SECONDS)
                 } catch (_: Exception) { }
