@@ -1,16 +1,16 @@
 {
   "name": "KillSuoji Android 应用",
-  "version": "V2.4.5 beta",
-  "version_code": 18,
-  "status": "available",
+  "version": "V2.4.7 beta",
+  "version_code": 20,
+  "status": "unavailable",
   "updated_at": "2026-11-05",
   "download_page": "https://3525808867a-dot.github.io/",
-  "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.4.5/2.4.5.apk",
+  "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.4.7/2.4.7.apk",
   "features": [
     "主页：显示应用工作状态与版本信息。",
     "启动页：检测 Root 权限状态并提供执行入口。",
     "工作中连续按 5 次音量下键，自动启动 KillSuoji。",
     "Root 权限监听全局音量下键；五次触发后由 Root 直接启动应用，无需悬浮窗权限。"
   ],
-  "notice": "V2.4.5 beta 安装包构建并发布后即可下载。"
+  "notice": "V2.4.7 beta 正在构建，安装包尚未发布。"
 }
