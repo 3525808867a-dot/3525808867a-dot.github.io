@@ -2,7 +2,6 @@ package com.killsuoji.app
 
 import android.app.DownloadManager
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.content.Intent
 import android.net.Uri
@@ -136,7 +135,7 @@ private fun KillSuojiApp() {
         installedApps.addAll(discovered)
         if (!prefs.contains("app_whitelist")) {
             whitelist = (setOf(context.packageName) + discovered.filter { it.isSukiSU }.map { it.packageName }).toSet()
-            prefs.edit().putStringSet("app_whitelist", whitelist).apply()
+            prefs.edit().putStringSet("app_whitelist", whitelist.toMutableSet()).apply()
         } else {
             whitelist = (prefs.getStringSet("app_whitelist", emptySet())?.toSet() ?: emptySet()) + context.packageName
         }
