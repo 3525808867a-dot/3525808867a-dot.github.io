@@ -51,9 +51,7 @@ class RootVolumeMonitorService : Service() {
                 while (monitoring) {
                     val line = reader.readLine() ?: break
                     // 只统计音量下键的 DOWN；忽略 UP 和长按 REPEAT。
-                    if (line.contains("KEY_VOLUMEDOWN") &&
-                        Regex("\\b(?:DOWN|1)\\b", RegexOption.IGNORE_CASE).containsMatchIn(line)
-                    ) {
+                    if (isVolumeDownKeyPress(line)) {
                         val now = SystemClock.elapsedRealtime()
                         if (count == 0 || now - firstPressAt > 3000L) {
                             count = 0
@@ -83,6 +81,21 @@ class RootVolumeMonitorService : Service() {
                 updateNotification(failureMessage ?: "监听已停止；请重新点击执行")
             }
         }
+    }
+
+    /**
+     * getevent -l 在部分厂商内核上输出 KEY_VOLUMEDOWN，
+     * 另一些设备只输出 Linux 键码 0x0072（十进制 114）。
+     * 只接受 EV_KEY 的 DOWN/数值 1，忽略 UP 与长按重复值 2。
+     */
+    private fun isVolumeDownKeyPress(line: String): Boolean {
+        if (!line.contains("EV_KEY", ignoreCase = true)) return false
+
+        val isVolumeDown = VOLUME_DOWN_NAME.containsMatchIn(line) ||
+            VOLUME_DOWN_CODE.containsMatchIn(line)
+        if (!isVolumeDown) return false
+
+        return KEY_DOWN_VALUE.containsMatchIn(line)
     }
 
     /** 每累计五次音量下键，只以 Root 身份执行一次用户指定的启动脚本。 */
@@ -160,5 +173,8 @@ class RootVolumeMonitorService : Service() {
     companion object {
         private const val CHANNEL_ID = "killsuoji_root_monitor"
         private const val NOTIFICATION_ID = 2401
+        private val VOLUME_DOWN_NAME = Regex("\\bKEY_?VOLUMEDOWN\\b|\\bKEY_VOLUME_DOWN\\b", RegexOption.IGNORE_CASE)
+        private val VOLUME_DOWN_CODE = Regex("(?:^|\\s)(?:0x0*72|114)(?:\\s|$)", RegexOption.IGNORE_CASE)
+        private val KEY_DOWN_VALUE = Regex("(?:^|\\s)(?:DOWN|0x0*1|0*1)\\s*$", RegexOption.IGNORE_CASE)
     }
 }
