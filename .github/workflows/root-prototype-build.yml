@@ -44,6 +44,9 @@ jobs:
           test -n "$KILLSUOJI_KEY_PASSWORD"
           echo "$KILLSUOJI_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/killsuoji-release.keystore"
           echo "KILLSUOJI_KEYSTORE_FILE=$RUNNER_TEMP/killsuoji-release.keystore" >> "$GITHUB_ENV"
+          echo "KILLSUOJI_STORE_PASSWORD=$KILLSUOJI_STORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KILLSUOJI_KEY_ALIAS=$KILLSUOJI_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "KILLSUOJI_KEY_PASSWORD=$KILLSUOJI_KEY_PASSWORD" >> "$GITHUB_ENV"
           echo "Stable signing key configured."
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -71,7 +74,7 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk downloads/3.1.0.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add downloads/killsuoji-root-permission-probe.apk downloads/3.0.0-beta.apk
+          git add downloads/killsuoji-root-permission-probe.apk downloads/3.1.0.apk
           if ! git diff --cached --quiet; then
             git commit -m "Publish root permission probe APK"
             git push
