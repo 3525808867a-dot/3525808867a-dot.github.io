@@ -150,16 +150,20 @@ class RootVolumeMonitorService : Service() {
             val encoded = Base64.encodeToString(whitelistText.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
             val rootCommand = """
                 WLFILE=/data/local/tmp/killsuoji_safe_whitelist.txt
-                echo '$encoded' | base64 -d > "$WLFILE" || exit 20
-                WL=" $(tr '\n' ' ' < "$WLFILE") "
-                pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r pkg; do
-                  [ -n "$pkg" ] || continue
-                  case "$WL" in *" $pkg "*) continue ;; esac
-                  count=$(ps -A -o PID,NAME 2>/dev/null | awk -v p="$pkg" 'NR>1 && ($2==p || index($2,p ":")==1) {n++} END {print n+0}')
-                  [ "$count" -gt 0 ] || continue
-                  if am force-stop "$pkg" >/dev/null 2>&1; then echo "$count"; fi
-                done | awk '{total+=$1} END {print total+0}'
-                rm -f "$WLFILE"
+                echo '$encoded' | base64 -d > "${'$'}WLFILE" || exit 20
+                WL=" $(tr '\\n' ' ' < "${'$'}WLFILE") "
+                COUNT=$(
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r ${'$'}pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) continue ;; esac
+                    count=$(ps -A -o PID,NAME 2>/dev/null | awk -v p="${'$'}pkg" 'NR>1 && (${'$'}2==p || index(${'$'}2,p ":")==1) {n++} END {print n+0}')
+                    [ "${'$'}count" -gt 0 ] || continue
+                    if am force-stop "${'$'}pkg" >/dev/null 2>&1; then echo "${'$'}count"; fi
+                  done | awk '{total+=${'$'}1} END {print total+0}'
+                )
+                echo "[$(date +%s)] Third-party cleanup completed; killed_process_count=${'$'}COUNT" >> /data/adb/killsuoji_overlay/root-window.log
+                echo "${'$'}COUNT"
+                rm -f "${'$'}WLFILE"
             """.trimIndent()
             val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
             if (!process.waitFor(60, TimeUnit.SECONDS)) {
