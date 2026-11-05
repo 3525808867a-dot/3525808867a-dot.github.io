@@ -9,13 +9,12 @@ android {
     defaultConfig {
         applicationId = "com.killsuoji.probe"
         minSdk = 20
-        multiDexEnabled = true
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        multiDexEnabled = true
+        multiDexKeepFile = file("multidex-keep.txt")
     }
-
-    multiDexKeepFile = file("multidex-keep.txt")
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
