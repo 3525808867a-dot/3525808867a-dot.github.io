@@ -229,3 +229,30 @@ class RootVolumeMonitorService : Service() {
         private const val NOTIFICATION_ID = 2401
     }
 }
+
+
+/** 快捷设置磁贴备用入口：即使应用悬浮窗被其他窗口遮挡，也可从系统快捷设置触发同一 Root 操作。 */
+class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
+    override fun onClick() {
+        super.onClick()
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java)
+            .setAction(RootVolumeMonitorService.ACTION_EXECUTE_NOW)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(executeIntent)
+            else startService(executeIntent)
+            qsTile?.state = android.service.quicksettings.Tile.STATE_ACTIVE
+            qsTile?.updateTile()
+        } catch (_: Exception) {
+            qsTile?.state = android.service.quicksettings.Tile.STATE_UNAVAILABLE
+            qsTile?.updateTile()
+        }
+    }
+
+    override fun onStartListening() {
+        super.onStartListening()
+        qsTile?.label = "KillSuoji 执行"
+        qsTile?.contentDescription = "执行 KillSuoji Root 启动脚本"
+        qsTile?.state = android.service.quicksettings.Tile.STATE_INACTIVE
+        qsTile?.updateTile()
+    }
+}
