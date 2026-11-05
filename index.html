@@ -76,33 +76,34 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
  }
  async function loadHistoryVersions(){
   const status=document.getElementById('history-status'),list=document.getElementById('history-list');
-  const known=[
-   {v:'2.4.5',file:'2.4.5.apk'},
-   {v:'2.4.4',file:'2.4.4.apk'},
-   {v:'2.4.3',file:'2.4.3.apk'},
-   {v:'2.4.1',file:'2.4.1.apk'},
-   {v:'2.4.0',file:'2.4.0.apk'},
-   {v:'2.3.6',file:'2.3.6.apk'},
-   {v:'2.3.5',file:'2.3.5.apk'},
-   {v:'2.3.4',file:'2.3.4.apk'},
-   {v:'2.3.3',file:'2.3.3.apk'},
-   {v:'2.3.2',file:'2.3.2.apk'},
-   {v:'2.3.1',file:'2.3.1.apk'},
-   {v:'2.3.0',file:'2.3.0.apk'},
-   {v:'2.2.0',file:'2.2.0.apk'},
-   {v:'2.1.0',file:'app-debug.apk'},
-   {v:'2.0.0',file:'app-debug.apk'},
-   {v:'1.1.0',file:'app-debug.apk'},
-   {v:'1.0.0',file:'app-debug.apk'}
-  ];
   list.replaceChildren();
-  status.textContent='历史版本列表：';
-  known.forEach(x=>{
-   const row=document.createElement('div');row.className='history-item';
-   const label=document.createElement('strong');label.textContent='V'+x.v+' Beta';
-   const link=document.createElement('a');link.href='https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v'+x.v+'/'+x.file;link.download=x.v+'.apk';link.textContent='下载';
-   row.append(label,link);list.append(row);
-  });
+  status.textContent='正在自动读取 GitHub 历史版本…';
+  try{
+   const res=await fetch('https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases?per_page=100',{cache:'no-store',headers:{'Accept':'application/vnd.github+json'}});
+   if(!res.ok)throw new Error('GitHub API HTTP '+res.status);
+   const releases=await res.json();
+   const versions=[];
+   releases.forEach(release=>{
+    const tag=(release.tag_name||'').replace(/^v/i,'');
+    if(release.draft||/PR/i.test(tag))return;
+    const match=tag.match(/^(\d+)\.(\d+)\.(\d+)(?:[-.]?(beta))?$/i);
+    if(!match)return;
+    (release.assets||[]).filter(asset=>/\.apk$/i.test(asset.name||'')).forEach(asset=>{
+     versions.push({major:Number(match[1]),minor:Number(match[2]),patch:Number(match[3]),pre:!!match[4]||!!release.prerelease,version:match[1]+'.'+match[2]+'.'+match[3],url:asset.browser_download_url,file:asset.name});
+    });
+   });
+   versions.sort((a,b)=>b.major-a.major||b.minor-a.minor||b.patch-a.patch||Number(a.pre)-Number(b.pre));
+   if(!versions.length){status.textContent='暂未找到可下载的历史版本。';return;}
+   versions.forEach(item=>{
+    const row=document.createElement('div');row.className='history-item';
+    const label=document.createElement('strong');label.textContent='V'+item.version+(item.pre?' Beta':'');
+    const link=document.createElement('a');link.href=item.url;link.download=item.file;link.textContent='下载';
+    row.append(label,link);list.append(row);
+   });
+   status.textContent='历史版本列表（已自动同步 GitHub Releases）：';
+  }catch(err){
+   status.textContent='历史版本读取失败：'+err.message+'。请稍后刷新重试。';
+  }
  }
  async function checkRepositoryVersion(){
    renderUpdate('checking','正在读取下载网站的版本信息…');
