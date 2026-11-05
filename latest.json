@@ -1,21 +1,21 @@
 {
   "name": "KillSuoji Android 应用",
-  "version": "V2.5.4",
-  "version_code": 32,
+  "version": "V2.5.5",
+  "version_code": 33,
   "status": "available",
   "updated_at": "2026-11-05",
   "download_page": "https://3525808867a-dot.github.io/",
-  "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.4/2.5.4.apk",
+  "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.5/2.5.5.apk",
   "features": [
     "工作状态开启后显示固定的 killzuoji 悬浮窗。",
-    "点击 killzuoji 悬浮窗一次，由 Root 执行启动脚本。",
+    "点击 killzuoji 悬浮窗后，先结束非白名单用户应用，再由 Root 执行启动脚本。",
     "killsuoji必要模块在后台服务被回收后尝试重新拉起悬浮窗服务。",
     "killsuoji必装模块，防止进程被杀。"
   ],
-  "notice": "V2.5.4 已发布；killsuoji必要模块版本 1.0.0 beta。",
+  "notice": "V2.5.5 已发布；killsuoji必要模块版本 1.0.0 beta。",
   "module_version": "1.0.0 beta",
   "module_author": "酷安ddddd",
-  "module": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.4/killsuoji-overlay-1.0.0-beta.zip",
+  "module": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.5/killsuoji-overlay-1.0.0-beta.zip",
   "module_name": "killsuoji必要模块",
   "module_description": "killsuoji必装模块，防止进程被杀。"
 }

@@ -3,15 +3,16 @@
 KillSuoji 是一款基于 Android 的 Root 工具应用。
 
 ## 当前版本
-- 版本：**V2.5.4**
+- 版本：**V2.5.5**
 - 平台：Android（最低支持 Android 8.0 / API 26）
-- APK：[下载 2.5.4.apk](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.4/2.5.4.apk)
-- killsuoji必要模块：[killsuoji-overlay-1.0.0-beta.zip](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.4/killsuoji-overlay-1.0.0-beta.zip)
+- APK：[下载 2.5.5.apk](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.5/2.5.5.apk)
+- killsuoji必要模块：[killsuoji-overlay-1.0.0-beta.zip](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.5/killsuoji-overlay-1.0.0-beta.zip)
 
 ## 功能简介
 - Root 权限检测及工作状态切换。
 - 工作状态开启后显示固定的 killzuoji 悬浮窗。
-- 点击悬浮窗一次，由 Root 执行原启动脚本。
+- 控制台可管理应用白名单；勾选应用不会被结束，默认保护 KillSuoji 和 SukiSU。
+- 点击悬浮窗后，先结束非白名单用户应用，再由 Root 执行原启动脚本。
 - killsuoji必要模块在后台服务被回收后尝试重新拉起悬浮窗服务。
 - 模块文件安装在 /data/adb/modules/killsuoji_overlay，不修改 /system、/vendor 等系统分区。
 
