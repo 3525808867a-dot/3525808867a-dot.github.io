@@ -115,7 +115,8 @@ h1{font-size:clamp(36px,8vw,56px);line-height:1.1;margin:34px 0 10px;letter-spac
      if(!match||typeof info.apk!=='string'||!/^https:\/\//.test(info.apk))throw new Error('版本信息格式无效');
      const version=match[1],sourceVersion=currentVersion.split(' ')[0];
      const note=version===sourceVersion?'':'（当前源码版本 V'+sourceVersion+'，下载网站提供 V'+version+'）';
-     const beta=/beta/i.test(info.version||'');\n     renderUpdate('available','已读取可下载版本：V'+version+(beta?' Beta':' 正式版')+'。'+note+' 点击“下载”即可获取安装包。',info.apk);
+     const beta=/beta/i.test(info.version||'');
+     renderUpdate('available','已读取可下载版本：V'+version+(beta?' Beta':' 正式版')+'。'+note+' 点击“下载”即可获取安装包。',info.apk);
    }catch(err){
      renderUpdate('undetectable','无法读取下载网站版本信息：'+err.message+'；请稍后重试。');
    }
