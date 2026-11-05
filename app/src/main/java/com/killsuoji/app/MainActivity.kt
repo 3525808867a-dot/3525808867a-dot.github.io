@@ -443,21 +443,20 @@ private fun LaunchScreen(
                 "if [ -f \"\$LOG\" ]; then tail -n 160 \"\$LOG\"; else " +
                 "echo '尚无日志文件：等待执行启动'; fi"
             val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().use { it.readText() }
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
                 process.destroyForcibly()
                 "读取日志超时，请检查 Root 授权。"
-            } else {
-                val output = process.inputStream.bufferedReader().use { it.readText() }
-                if (process.exitValue() != 0) "读取日志失败（退出码：${process.exitValue()}）\n$output"
-                else output.ifBlank { "日志文件为空，尚未记录启动信息。" }
-            }
+            } else if (process.exitValue() != 0) {
+                "读取日志失败（退出码：${process.exitValue()}）\n$output"
+            } else output.ifBlank { "日志文件为空，尚未记录启动信息。" }
         } catch (e: Exception) {
             "读取日志异常：${e.message ?: "未知错误"}"
         }
     }
 
     LaunchedEffect(isWorking, logRefreshKey) {
-        delay(if (isWorking) 1200 else 500)
+        delay(if (isWorking) 1200 else 3800)
         rootLog = readLatestRootLog()
         while (isWorking) {
             delay(1500)
