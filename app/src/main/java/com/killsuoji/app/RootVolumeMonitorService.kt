@@ -22,6 +22,8 @@ class RootVolumeMonitorService : Service() {
     @Volatile private var rootProcess: Process? = null
     @Volatile private var monitoring = false
     private var monitorThread: Thread? = null
+    @Volatile private var triggerInProgress = false
+    @Volatile private var ignoreEventsUntil = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -40,6 +42,7 @@ class RootVolumeMonitorService : Service() {
     private fun monitorVolumeDown() {
         var count = 0
         var firstPressAt = 0L
+        var lastPressAt = 0L
 
         // getevent 偶发退出或输入设备重置时自动重连；START_STICKY 负责服务进程被系统回收后的恢复。
         while (monitoring) {
@@ -55,18 +58,31 @@ class RootVolumeMonitorService : Service() {
                 BufferedReader(InputStreamReader(activeProcess.inputStream)).use { reader ->
                     while (monitoring) {
                         val line = reader.readLine() ?: break
-                        if (isVolumeDownKeyPress(line)) {
-                            val now = SystemClock.elapsedRealtime()
-                            if (count == 0 || now - firstPressAt > 3000L) {
-                                count = 0
-                                firstPressAt = now
-                            }
-                            count++
-                            updateNotification("已检测到音量下键：$count/5")
-                            if (count >= 5) {
-                                count = 0
-                                firstPressAt = 0L
+                        val eventAt = getFreshEventUptime(line) ?: continue
+                        if (!isVolumeDownKeyPress(line)) continue
+                        val now = SystemClock.uptimeMillis()
+                        // 丢弃 getevent 缓冲区中的旧事件，避免返回应用时补执行旧的五击。
+                        if (now < ignoreEventsUntil || triggerInProgress) continue
+                        // 同一次物理按键可能由多个输入设备重复上报，做短间隔去重。
+                        if (lastPressAt != 0L && eventAt - lastPressAt < 180L) continue
+                        if (count == 0 || eventAt - firstPressAt > 3000L || eventAt < firstPressAt) {
+                            count = 0
+                            firstPressAt = eventAt
+                        }
+                        lastPressAt = eventAt
+                        count++
+                        updateNotification("已检测到音量下键：$count/5")
+                        if (count >= 5) {
+                            count = 0
+                            firstPressAt = 0L
+                            lastPressAt = 0L
+                            triggerInProgress = true
+                            ignoreEventsUntil = now + 5000L
+                            try {
                                 launchMainActivity()
+                            } finally {
+                                triggerInProgress = false
+                                ignoreEventsUntil = SystemClock.uptimeMillis() + 5000L
                             }
                         }
                     }
@@ -93,6 +109,18 @@ class RootVolumeMonitorService : Service() {
             }
         }
         monitoring = false
+    }
+
+    /**
+     * getevent -t 输出设备启动后的单调时钟时间戳。
+     * 只处理最近 1.5 秒内产生的事件，防止积压事件在返回应用后补执行。
+     */
+    private fun getFreshEventUptime(line: String): Long? {
+        val match = EVENT_TIMESTAMP.find(line) ?: return null
+        val seconds = match.groupValues[1].toDoubleOrNull() ?: return null
+        val eventAt = (seconds * 1000.0).toLong()
+        val now = SystemClock.uptimeMillis()
+        return if (eventAt <= now && now - eventAt <= 1500L) eventAt else null
     }
 
     /**
@@ -198,6 +226,7 @@ class RootVolumeMonitorService : Service() {
     companion object {
         private const val CHANNEL_ID = "killsuoji_root_monitor"
         private const val NOTIFICATION_ID = 2401
+        private val EVENT_TIMESTAMP = Regex("^\[\\s*(\\d+\\.\\d+)\\]")
         private val VOLUME_DOWN_NAME = Regex("\\bKEY_?VOLUMEDOWN\\b|\\bKEY_VOLUME_DOWN\\b", RegexOption.IGNORE_CASE)
         private val VOLUME_DOWN_CODE = Regex("(?:^|\\s)(?:0x0*72|114)(?:\\s|$)", RegexOption.IGNORE_CASE)
         private val KEY_DOWN_VALUE = Regex("(?:^|\\s)(?:DOWN|0x0*1|0*1)\\s*$", RegexOption.IGNORE_CASE)
