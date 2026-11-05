@@ -85,36 +85,30 @@ class RootVolumeMonitorService : Service() {
         }
     }
 
-    /**
-     * 五次音量下键触发后，直接通过 su 以 Root 身份启动主界面。
-     * 不依赖悬浮窗权限，也不先尝试普通应用身份的后台 Activity 启动。
-     */
+    /** 每累计五次音量下键，只以 Root 身份执行一次用户指定的启动脚本。 */
     private fun launchMainActivity() {
-        val command = "id; am start -W -a android.intent.action.MAIN " +
-            "-c android.intent.category.LAUNCHER -f 0x34020000 " +
-            "-n com.killsuoji.app/.MainActivity --ez killsuoji_trigger true"
+        val scriptPath = "/data/local/tmp/launch_killapp.sh"
         try {
-            val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
-            val output = process.inputStream.bufferedReader().use { it.readText() }
-            val finished = process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)
+            val process = ProcessBuilder("su", "-c", "sh '$scriptPath'")
+                .redirectErrorStream(true)
+                .start()
+            val finished = process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)
             if (!finished) {
                 process.destroyForcibly()
-                updateNotification("Root 启动命令超时；请检查 Root 授权与系统启动限制")
+                updateNotification("Root 启动脚本执行超时，请检查脚本与 Root 授权")
                 return
             }
+            val output = process.inputStream.bufferedReader().use { it.readText() }
             val exitCode = process.exitValue()
-            val hasRoot = output.contains("uid=0")
-            val launchFailed = exitCode != 0 || output.contains("Error:", ignoreCase = true) ||
-                output.contains("Exception", ignoreCase = true) || output.contains("does not exist", ignoreCase = true)
-            updateNotification(when {
-                !hasRoot -> "未获得 Root 授权，启动失败：${output.take(100)}"
-                launchFailed -> "Root 已授权，但启动失败：${output.take(120)}"
-                output.contains("Status: ok", ignoreCase = true) || output.contains("Activity:", ignoreCase = true) ->
-                    "Root 已执行启动命令：正在打开 KillSuoji"
-                else -> "Root 启动命令已执行；若未显示，请检查系统是否限制后台启动"
-            })
+            updateNotification(
+                if (exitCode == 0 && !output.contains("Error:", ignoreCase = true)) {
+                    "已由 Root 执行 launch_killapp.sh"
+                } else {
+                    "Root 启动脚本执行失败（$exitCode）：${output.take(120)}"
+                }
+            )
         } catch (e: Exception) {
-            updateNotification("Root 启动失败：" + (e.message ?: "未知错误"))
+            updateNotification("Root 启动脚本执行失败：" + (e.message ?: "未知错误"))
         }
     }
 
