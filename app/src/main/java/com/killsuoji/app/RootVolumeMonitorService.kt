@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
+import android.util.Base64
 import android.widget.TextView
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -29,6 +30,7 @@ class RootVolumeMonitorService : Service() {
         super.onCreate()
         createNotificationChannel()
         startForegroundCompat(buildNotification())
+        startRootWatchdog()
         showKillzuojiOverlay()
     }
 
@@ -76,6 +78,39 @@ class RootVolumeMonitorService : Service() {
             overlayView = null
             overlayWindowManager = null
         }
+    }
+
+    /** Root 守护进程独立于应用进程运行；检测悬浮窗服务进程退出后重新拉起。 */
+    private fun startRootWatchdog() {
+        val script = """#!/system/bin/sh
+PIDFILE=/data/local/tmp/killsuoji_overlay_watchdog.pid
+ENABLED=/data/local/tmp/killsuoji_overlay_enabled
+if [ -f "$PIDFILE" ]; then
+  OLD_PID=$(cat "$PIDFILE" 2>/dev/null)
+  if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then exit 0; fi
+fi
+echo $ > "$PIDFILE"
+trap 'rm -f "$PIDFILE"' EXIT
+while [ -f "$ENABLED" ]; do
+  if ! pidof com.killsuoji.app:overlay >/dev/null 2>&1; then
+    am start-foreground-service -n com.killsuoji.app/.RootVolumeMonitorService >/dev/null 2>&1
+  fi
+  sleep 3
+done
+"""
+        val encoded = Base64.encodeToString(script.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        val command = "echo '$encoded' | base64 -d > /data/local/tmp/killsuoji_overlay_watchdog.sh && chmod 700 /data/local/tmp/killsuoji_overlay_watchdog.sh && touch /data/local/tmp/killsuoji_overlay_enabled && (nohup sh /data/local/tmp/killsuoji_overlay_watchdog.sh >/dev/null 2>&1 </dev/null & )"
+        try {
+            val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+            process.waitFor(5, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
+    }
+
+    private fun stopRootWatchdog() {
+        try {
+            val command = "rm -f /data/local/tmp/killsuoji_overlay_enabled; if [ -f /data/local/tmp/killsuoji_overlay_watchdog.pid ]; then kill $(cat /data/local/tmp/killsuoji_overlay_watchdog.pid) 2>/dev/null; rm -f /data/local/tmp/killsuoji_overlay_watchdog.pid; fi"
+            ProcessBuilder("su", "-c", command).start().waitFor(3, TimeUnit.SECONDS)
+        } catch (_: Exception) { }
     }
 
     private fun executeLaunchScript() {
@@ -136,6 +171,7 @@ class RootVolumeMonitorService : Service() {
     }
 
     override fun onDestroy() {
+        stopRootWatchdog()
         removeKillzuojiOverlay()
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
