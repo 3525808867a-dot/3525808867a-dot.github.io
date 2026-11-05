@@ -113,7 +113,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.number }}
-          name: KillSuoji ${{ steps.version.outputs.number }} beta
+          name: KillSuoji V${{ steps.version.outputs.number }}
           make_latest: true
           overwrite_files: true
           files: ${{ steps.version.outputs.apk_name }}
