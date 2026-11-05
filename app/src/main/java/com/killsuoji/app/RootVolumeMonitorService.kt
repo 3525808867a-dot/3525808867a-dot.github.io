@@ -35,6 +35,14 @@ class RootVolumeMonitorService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP_WORKING) {
+            // 只有用户明确点击“停止”时才关闭独立 Root 守护进程。
+            stopRootWatchdog()
+            removeKillzuojiOverlay()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (overlayView == null) showKillzuojiOverlay()
         return START_STICKY
     }
@@ -171,7 +179,8 @@ done
     }
 
     override fun onDestroy() {
-        stopRootWatchdog()
+        // 系统回收悬浮窗服务时不能关闭 watchdog；它需要负责重新拉起服务。
+        // 用户主动停止时，ACTION_STOP_WORKING 已先明确关闭 watchdog。
         removeKillzuojiOverlay()
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
@@ -180,6 +189,7 @@ done
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
         private const val CHANNEL_ID = "killsuoji_root_monitor"
         private const val NOTIFICATION_ID = 2401
     }
