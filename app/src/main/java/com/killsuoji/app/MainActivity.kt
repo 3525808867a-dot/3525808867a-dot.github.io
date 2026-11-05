@@ -665,7 +665,7 @@ private suspend fun runOneClickRepair(onProgress: (String) -> Unit) {
     }
     if (verify.first == 0) {
         onProgress("修复后检查结果：")
-        verify.second.lineSequence().filter { it.isNotBlank() }.takeLast(10).forEach(onProgress)
+        verify.second.lineSequence().filter { it.isNotBlank() }.toList().takeLast(10).forEach(onProgress)
         if (verify.second.contains("ROOT_WINDOW_PID_PRESENT")) onProgress("已检测到 Root 悬浮窗进程 PID 文件；请观察悬浮窗是否恢复。")
         else onProgress("守护状态已修复，但暂未检测到 Root 悬浮窗 PID 文件；日志已保留，不能判定完全修复。")
     } else {
