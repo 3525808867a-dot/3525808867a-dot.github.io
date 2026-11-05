@@ -145,7 +145,14 @@ private fun KillSuojiApp() {
                             Toast.makeText(context, "工作状态启动失败：" + (e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
                         }
                     } else {
-                        context.stopService(Intent(context, RootVolumeMonitorService::class.java))
+                        try {
+                            context.startForegroundService(
+                                Intent(context, RootVolumeMonitorService::class.java)
+                                    .setAction(RootVolumeMonitorService.ACTION_STOP_WORKING)
+                            )
+                        } catch (_: Exception) {
+                            context.stopService(Intent(context, RootVolumeMonitorService::class.java))
+                        }
                         isWorking = false
                         prefs.edit().putBoolean("is_working", false).apply()
                     }
@@ -197,7 +204,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("V2.5.3-PR-03", fontSize = 13.sp, color = Color(0xFF68736D))
+                        Text("V2.5.3-PR-04", fontSize = 13.sp, color = Color(0xFF68736D))
                         Text("当前为PR调试构建，请勿在生产环境中使用！",
                             fontSize = 12.sp, color = Color(0xFFD32F2F), fontWeight = FontWeight.SemiBold)
                     }
