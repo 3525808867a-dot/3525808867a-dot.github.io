@@ -151,22 +151,21 @@ class RootVolumeMonitorService : Service() {
             val encoded = Base64.encodeToString(whitelistText.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
             val rootCommand = """
                 WLFILE=/data/local/tmp/killsuoji_safe_whitelist.txt
-                echo '$encoded' | base64 -d > "${'WLFILE" || exit 20}WLFILE" || exit 20
-                WL=" $(tr '\n' ' ' < "${'WLFILE") "}WLFILE") "
+                echo '$encoded' | base64 -d > "${'$'}WLFILE" || exit 20
+                WL=" $(tr '\n' ' ' < "${'$'}WLFILE") "
                 COUNT=$(
-                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r ${'pkg; do}pkg; do
-                    [ -n "${'pkg" ] || continue}pkg" ] || continue
-                    case "${'WL" in *" ${'$' }pkg "*) continue ;; esac}WL" in *" ${'pkg "*) continue ;; esac}pkg "*) continue ;; esac
-                    # Stop every non-whitelisted third-party package, even if ps reports a suffixed or isolated process name.
-                    if am force-stop --user 0 "${'pkg" >/dev/null 2>&1; then}pkg" >/dev/null 2>&1; then
-                      echo "STOPPED:${'pkg" >> /data/adb/killsuoji_overlay/root-window.log}pkg" >> /data/adb/killsuoji_overlay/root-window.log
+                  pm list packages -3 2>/dev/null | cut -d: -f2 | while IFS= read -r ${'$'}pkg; do
+                    [ -n "${'$'}pkg" ] || continue
+                    case "${'$'}WL" in *" ${'$'}pkg "*) continue ;; esac
+                    # Stop every non-whitelisted third-party package regardless of process-name formatting.
+                    if am force-stop --user 0 "${'$'}pkg" >/dev/null 2>&1; then
+                      echo "STOPPED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log
                       echo 1
                     else
-                      echo "FAILED:${'pkg" >> /data/adb/killsuoji_overlay/root-window.log}pkg" >> /data/adb/killsuoji_overlay/root-window.log
+                      echo "FAILED:${'$'}pkg" >> /data/adb/killsuoji_overlay/root-window.log
                       echo 0
                     fi
-                  done | awk '{total+=${'1} END {print total+0}'}1} END {print total+0}'
-                )
+                  done | awk '{total+=${'$'}1} END {print total+0}'
                 )
                 echo "[$(date +%s)] Third-party cleanup completed; killed_process_count=${'$'}COUNT" >> /data/adb/killsuoji_overlay/root-window.log
                 echo "${'$'}COUNT"
