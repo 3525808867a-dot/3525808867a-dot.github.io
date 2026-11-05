@@ -62,7 +62,7 @@ public final class RootPermissionProbe extends Activity {
                     String command = "CLASSPATH='" + apk.replace("'", "'\\''")
                             + "' app_process /system/bin "
                             + RootPermissionProbe.class.getName();
-                    Process process = new ProcessBuilder("su", "-c", command)
+                    java.lang.Process process = new ProcessBuilder("su", "-c", command)
                             .redirectErrorStream(true).start();
                     try (BufferedReader reader = new BufferedReader(
                             new InputStreamReader(process.getInputStream()))) {
