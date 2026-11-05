@@ -14,7 +14,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Root input monitoring for the user-enabled volume-down shortcut" />
+                android:value="User-enabled clickable overlay to launch the configured Root script" />
         </service>
     </application>
 </manifest>
