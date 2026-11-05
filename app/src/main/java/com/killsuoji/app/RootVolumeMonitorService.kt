@@ -34,53 +34,64 @@ class RootVolumeMonitorService : Service() {
             monitoring = true
             monitorThread = thread(name = "KillSuoji-Root-Volume-Monitor") { monitorVolumeDown() }
         }
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     private fun monitorVolumeDown() {
         var count = 0
         var firstPressAt = 0L
-        var failureMessage: String? = null
-        try {
-            val process = ProcessBuilder("su", "-c", "exec /system/bin/getevent -lt")
-                .redirectErrorStream(true)
-                .start()
-            rootProcess = process
 
-            BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                while (monitoring) {
-                    val line = reader.readLine() ?: break
-                    // 只统计音量下键的 DOWN；忽略 UP 和长按 REPEAT。
-                    if (isVolumeDownKeyPress(line)) {
-                        val now = SystemClock.elapsedRealtime()
-                        if (count == 0 || now - firstPressAt > 3000L) {
-                            count = 0
-                            firstPressAt = now
-                        }
-                        count++
-                        updateNotification("已检测到音量下键：$count/5")
-                        if (count >= 5) {
-                            count = 0
-                            firstPressAt = 0L
-                            launchMainActivity()
+        // getevent 偶发退出或输入设备重置时自动重连；START_STICKY 负责服务进程被系统回收后的恢复。
+        while (monitoring) {
+            var process: Process? = null
+            try {
+                process = ProcessBuilder("su", "-c", "exec /system/bin/getevent -lt")
+                    .redirectErrorStream(true)
+                    .start()
+                rootProcess = process
+                updateNotification("Root 全局音量下键监听运行中")
+
+                BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                    while (monitoring) {
+                        val line = reader.readLine() ?: break
+                        if (isVolumeDownKeyPress(line)) {
+                            val now = SystemClock.elapsedRealtime()
+                            if (count == 0 || now - firstPressAt > 3000L) {
+                                count = 0
+                                firstPressAt = now
+                            }
+                            count++
+                            updateNotification("已检测到音量下键：$count/5")
+                            if (count >= 5) {
+                                count = 0
+                                firstPressAt = 0L
+                                launchMainActivity()
+                            }
                         }
                     }
                 }
+
+                if (monitoring) {
+                    val exitCode = try { process.waitFor() } catch (_: InterruptedException) { -1 }
+                    updateNotification("Root 按键监听进程退出（$exitCode），正在重新连接")
+                }
+            } catch (e: Exception) {
+                if (monitoring) {
+                    updateNotification("Root 监听暂时中断，正在重试：" + (e.message ?: "未知错误"))
+                }
+            } finally {
+                rootProcess = null
             }
 
             if (monitoring) {
-                val exitCode = try { process.waitFor() } catch (_: InterruptedException) { -1 }
-                failureMessage = "Root 按键监听进程已退出（代码 $exitCode），请检查 Root 授权"
-            }
-        } catch (e: Exception) {
-            failureMessage = "Root 音量下键监听失败：" + (e.message ?: "请检查 Root 授权")
-        } finally {
-            rootProcess = null
-            if (monitoring) {
-                monitoring = false
-                updateNotification(failureMessage ?: "监听已停止；请重新点击执行")
+                try {
+                    Thread.sleep(1500L)
+                } catch (_: InterruptedException) {
+                    if (!monitoring) break
+                }
             }
         }
+        monitoring = false
     }
 
     /**
