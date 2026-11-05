@@ -1,1 +1,2 @@
 com/killsuoji/app/RootPermissionProbe.class
+com/killsuoji/app/RootSurfaceInputProbe*.class
