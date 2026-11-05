@@ -29,10 +29,10 @@ jobs:
         with:
           gradle-version: "8.9"
       - name: Build diagnostic APK
-        run: gradle assembleDebug
+        run: gradle :permission-probe:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: killsuoji-root-permission-probe
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: permission-probe/build/outputs/apk/debug/permission-probe-debug.apk
           if-no-files-found: error
           retention-days: 7
