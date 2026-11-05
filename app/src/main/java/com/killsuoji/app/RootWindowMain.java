@@ -7,7 +7,6 @@ import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
-import android.graphics.Typeface;
 import android.hardware.input.InputManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -35,7 +34,7 @@ public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
     private static final String SAFETY_FILE = "/data/adb/killsuoji_overlay/safety_mode";
-    private static final String BUILD_ID = "3.1.2-overlay-text-safe";
+    private static final String BUILD_ID = "3.1.2-overlay-text-async";
     private static SurfaceControl monitorSurface;
     private static SurfaceControl buttonControl;
     private static Surface buttonSurface;
@@ -195,7 +194,6 @@ public final class RootWindowMain {
         // Avoid Paint.getFontMetrics(): on some vendor Android builds this can enter
         // Typeface resolution and stall/crash the root-owned overlay process.
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setTypeface(Typeface.DEFAULT);
         p.setColor(color);
         p.setTextSize(size);
         p.setTextAlign(Paint.Align.CENTER);
@@ -205,48 +203,69 @@ public final class RootWindowMain {
         canvas.drawText(value, cx, cy + size * 0.34f, p);
     }
 
+    // Draw and post the visible button background first. Text rendering is deliberately
+    // isolated from the input-monitor looper: a vendor font renderer must never prevent
+    // the native overlay from attaching or receiving taps.
     private static void drawNormalButton() {
         if (buttonSurface == null) {
             writeLog("Cannot draw normal button: drawing Surface is null", null);
             return;
         }
         Canvas canvas = null;
-        boolean posted = false;
         try {
-            writeLog("Locking normal button canvas", null);
+            writeLog("Locking normal button background canvas", null);
             canvas = buttonSurface.lockCanvas(null);
-            writeLog("Normal button canvas locked", null);
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
-            Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
-            bg.setColor(Color.BLACK);
-            canvas.drawRoundRect(0, 0, width, mainHeight, 8f*density, 8f*density, bg);
-            try {
-                writeLog("Drawing normal button label with fixed baseline", null);
-                drawCenteredText(canvas, "停止", width/2f, mainHeight/2f, 17f*density, Color.WHITE);
-                writeLog("Normal button label rendered", null);
-            } catch (Throwable textError) {
-                writeLog("Normal button text renderer failed; drawing visible fallback marker", textError);
-                Paint marker = new Paint(Paint.ANTI_ALIAS_FLAG);
-                marker.setColor(Color.WHITE);
-                canvas.drawCircle(width/2f, mainHeight/2f, 5f*density, marker);
+            drawNormalButtonBackground(canvas);
+            buttonSurface.unlockCanvasAndPost(canvas);
+            canvas = null;
+            writeLog("Button background posted before text rendering", null);
+        } catch (Throwable error) {
+            writeLog("Normal button background draw failed", error);
+            if (canvas != null) {
+                try { buttonSurface.unlockCanvasAndPost(canvas); } catch (Throwable ignored) {}
             }
+            return;
+        }
+
+        Thread textThread = new Thread(() -> drawNormalButtonLabels(), "KillSuojiOverlayText");
+        textThread.setDaemon(true);
+        textThread.start();
+    }
+
+    private static void drawNormalButtonBackground(Canvas canvas) {
+        Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bg.setColor(Color.BLACK);
+        canvas.drawRoundRect(0, 0, width, mainHeight, 8f*density, 8f*density, bg);
+        if (safetyMode) {
+            int ch = Math.max(1, (int)(25f*density));
+            Paint cbg = new Paint(Paint.ANTI_ALIAS_FLAG);
+            cbg.setColor(Color.rgb(75,24,30));
+            canvas.drawRoundRect(0, cancelTop, width, cancelTop+ch, 7f*density, 7f*density, cbg);
+        }
+    }
+
+    // This second pass runs off the input looper. If text rendering stalls on a
+    // vendor ROM, the already-posted black button remains visible and tappable.
+    private static void drawNormalButtonLabels() {
+        if (buttonSurface == null) return;
+        Canvas canvas = null;
+        try {
+            writeLog("Background text-render thread started", null);
+            canvas = buttonSurface.lockCanvas(null);
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+            drawNormalButtonBackground(canvas);
+            drawCenteredText(canvas, "停止", width/2f, mainHeight/2f, 17f*density, Color.WHITE);
             if (safetyMode) {
                 int ch = Math.max(1, (int)(25f*density));
-                Paint cbg = new Paint(Paint.ANTI_ALIAS_FLAG);
-                cbg.setColor(Color.rgb(75,24,30));
-                canvas.drawRoundRect(0, cancelTop, width, cancelTop+ch, 7f*density, 7f*density, cbg);
-                try {
-                    drawCenteredText(canvas, "取消安全模式", width/2f, cancelTop+ch/2f, 12f*density, Color.WHITE);
-                } catch (Throwable textError) {
-                    writeLog("Cancel safety label renderer failed", textError);
-                }
+                drawCenteredText(canvas, "取消安全模式", width/2f, cancelTop+ch/2f, 12f*density, Color.WHITE);
             }
             buttonSurface.unlockCanvasAndPost(canvas);
-            posted = true;
-            writeLog("Button canvas posted with text/fallback", null);
+            canvas = null;
+            writeLog("Normal button labels rendered and posted", null);
         } catch (Throwable error) {
-            writeLog("Normal button canvas draw failed", error);
-            if (canvas != null && !posted) {
+            writeLog("Normal button label pass failed; background remains posted", error);
+            if (canvas != null) {
                 try { buttonSurface.unlockCanvasAndPost(canvas); } catch (Throwable ignored) {}
             }
         }
