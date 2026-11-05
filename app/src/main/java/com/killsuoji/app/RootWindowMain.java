@@ -37,7 +37,6 @@ public final class RootWindowMain {
             label.setText("killzuoji");
             label.setTextColor(Color.WHITE);
             label.setTextSize(12f);
-            label.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
             label.setGravity(Gravity.CENTER);
             label.setPadding((int)(8 * density), (int)(5 * density),
                     (int)(8 * density), (int)(5 * density));
