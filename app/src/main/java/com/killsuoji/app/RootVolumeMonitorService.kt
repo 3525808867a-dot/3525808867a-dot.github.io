@@ -105,7 +105,7 @@ class RootVolumeMonitorService : Service() {
         )
     }
 
-    private fun buildNotification(): Notification {
+    private fun buildNotification(message: String = "Root 正在监听音量下键，连续按 5 次返回应用"): Notification {
         val pending = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -113,7 +113,7 @@ class RootVolumeMonitorService : Service() {
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentTitle("KillSuoji · 工作中")
-            .setContentText("Root 正在监听音量下键，连续按 5 次返回应用")
+            .setContentText(message)
             .setContentIntent(pending)
             .setOngoing(true)
             .build()
@@ -121,9 +121,7 @@ class RootVolumeMonitorService : Service() {
 
     private fun updateNotification(message: String) {
         val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, buildNotification().also {
-            it.extras.putCharSequence(Notification.EXTRA_TEXT, message)
-        })
+        manager.notify(NOTIFICATION_ID, buildNotification(message))
     }
 
     override fun onDestroy() {
