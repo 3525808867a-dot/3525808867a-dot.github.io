@@ -34,6 +34,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 private val KsuAccent = Color(0xFF4285F4)
 private val StatusRed = Color(0xFFFFE1E1)
@@ -44,12 +45,36 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent { KillSuojiApp() }
         showInterceptToast(intent)
+        ensureLaunchScriptExists()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         showInterceptToast(intent)
+    }
+
+
+    /** 首次启动时以 Root 创建用户指定的启动脚本；已有文件时绝不覆盖。 */
+    private fun ensureLaunchScriptExists() {
+        val scriptPath = "/data/local/tmp/launch_killapp.sh"
+        val command = "if [ -e '$scriptPath' ]; then echo EXISTS; else " +
+            "echo 'IyEvc3lzdGVtL2Jpbi9zaAojIOaWh+S7tuWQjTogL2RhdGEvbG9jYWwvdG1wL2xhdW5jaF9raWxsYXBwLnNoCiMg5L2c55SoOiBSb290IOadg+mZkOaJp+ihjOWQjueri+WNs+aKiiBjb20ua2lsbHN1b2ppLmFwcCDmi4nliLDliY3lj7DvvIjkuI3nrqHlvZPliY3lnKjlgZrku4DkuYjvvIkKIyDnlKjms5U6IHN1IC1jICJzaCAvZGF0YS9sb2NhbC90bXAvbGF1bmNoX2tpbGxhcHAuc2giCgpQS0c9ImNvbS5raWxsc3VvamkuYXBwIgoKIyAtLS0tLS0tLS0tIDEuIOiHquaPkOadgyAtLS0tLS0tLS0tCmlmIFsgIiQoaWQgLXUpIiAhPSAiMCIgXTsgdGhlbgogICAgZXhlYyBzdSAtYyAic2ggJDAiCmZpCgojIC0tLS0tLS0tLS0gMi4g54K55Lqu5bGP5bmVICsg6Kej6Zmk6ZSB5bGPIC0tLS0tLS0tLS0KaW5wdXQga2V5ZXZlbnQgS0VZQ09ERV9XQUtFVVAgID4vZGV2L251bGwgMj4mMQppbnB1dCBrZXlldmVudCA4MiAgICAgICAgICAgICAgPi9kZXYvbnVsbCAyPiYxICAgIyDoj5zljZXplK7vvIzpg6jliIbmnLrlnovnlKjkuo7op6PplIEKd20gZGlzbWlzcy1rZXlndWFyZCAgICAgICAgICAgID4vZGV2L251bGwgMj4mMSAgICMgQW5kcm9pZCA2KyDnm7TmjqXlubLmjokga2V5Z3VhcmQKCiMgLS0tLS0tLS0tLSAzLiDojrflj5blkK/liqggQWN0aXZpdHkgLS0tLS0tLS0tLQpBQ1Q9JChjbWQgcGFja2FnZSByZXNvbHZlLWFjdGl2aXR5IC0tYnJpZWYgXAogICAgICAgIC1hIGFuZHJvaWQuaW50ZW50LmFjdGlvbi5NQUlOIFwKICAgICAgICAtYyBhbmRyb2lkLmludGVudC5jYXRlZ29yeS5MQVVOQ0hFUiBcCiAgICAgICAgIiRQS0ciIDI+L2Rldi9udWxsIHwgdGFpbCAtbiAxKQoKIyDlhZzlupXvvJrku44gZHVtcHN5cyDkuK3op6PmnpAKaWYgWyAteiAiJEFDVCIgXSB8fCBlY2hvICIkQUNUIiB8IGdyZXAgLXEgIk5vIGFjdGl2aXR5IjsgdGhlbgogICAgQUNUPSQoZHVtcHN5cyBwYWNrYWdlICIkUEtHIiAyPi9kZXYvbnVsbCBcCiAgICAgICAgICB8IGdyZXAgLW0xIC1vRSAiJFBLRy9bQS1aYS16MC05Xy5cXCRdKyIgKQpmaQoKIyAtLS0tLS0tLS0tIDQuIOWQr+WKqOW6lOeUqCAtLS0tLS0tLS0tCmlmIFsgLW4gIiRBQ1QiIF07IHRoZW4KICAgICMgLVM6IOWFiCBmb3JjZS1zdG9wIOWGjeWQr+WKqO+8jOS/neivgeaYr+WFqOaWsOWJjeWPsAogICAgIyAtZiAweDEwMDAwMDAwOiBGTEFHX0FDVElWSVRZX05FV19UQVNL77yM5LuOIHNoZWxsIOWQr+WKqOW/hemhu+WKoAogICAgYW0gc3RhcnQgLVMgLW4gIiRBQ1QiIFwKICAgICAgICAtYSBhbmRyb2lkLmludGVudC5hY3Rpb24uTUFJTiBcCiAgICAgICAgLWMgYW5kcm9pZC5pbnRlbnQuY2F0ZWdvcnkuTEFVTkNIRVIgXAogICAgICAgIC1mIDB4MTAwMDAwMDAgLS11c2VyIDAKZWxzZQogICAgIyDkuI3nn6XpgZMgQWN0aXZpdHkg5ZCN5pe255SoIG1vbmtleSDlhZzlupUKICAgIG1vbmtleSAtcCAiJFBLRyIgLWMgYW5kcm9pZC5pbnRlbnQuY2F0ZWdvcnkuTEFVTkNIRVIgMQpmaQoKZXhpdCAwCg==' | base64 -d > '$scriptPath' && chmod 755 '$scriptPath' && echo CREATED; fi"
+        thread(name = "KillSuoji-Create-Launch-Script") {
+            try {
+                val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+                val output = process.inputStream.bufferedReader().use { it.readText() }
+                if (!process.waitFor(15, TimeUnit.SECONDS)) {
+                    process.destroyForcibly()
+                    return@thread
+                }
+                if (process.exitValue() == 0 && output.contains("CREATED")) {
+                    runOnUiThread {
+                        Toast.makeText(this, "已创建 Root 启动脚本", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (_: Exception) { }
+        }
     }
 
     private fun showInterceptToast(intent: Intent?) {
@@ -170,7 +195,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.4.5 beta", fontSize = 13.sp, color = Color(0xFF68736D))
+                    Text("V2.4.7 beta", fontSize = 13.sp, color = Color(0xFF68736D))
                     
                 }
             }
@@ -327,7 +352,7 @@ private fun LaunchScreen(modifier: Modifier = Modifier, isWorking: Boolean, onTo
                 Text("Root 音量键拦截", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     if (isWorking) "Root 监听运行中：在任意应用 3 秒内连续按 5 次音量下键，自动启动 KillSuoji。"
-                    else "点击执行后由 Root 监听音量下键；首次使用需允许“显示在其他应用上层”，无需辅助功能权限。",
+                    else "点击执行后由 Root 监听音量下键；五次触发后由 Root 执行 /data/local/tmp/launch_killapp.sh。",
                     color = Color(0xFF68736D), fontSize = 14.sp
                 )
             }
