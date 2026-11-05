@@ -15,8 +15,8 @@ import java.io.InputStreamReader
 import kotlin.concurrent.thread
 
 /**
- * 用户点击“执行”后启动的前台服务。由 su 运行 getevent 读取全局音量下键，
- * 不请求辅助功能权限。监听失败时保留错误通知，避免界面仍显示工作中却没有监听。
+ * 用户主动点击“执行”后启动的前台服务。
+ * 使用 Root getevent 监听全局音量下键；连续 5 次后将主界面切到前台。
  */
 class RootVolumeMonitorService : Service() {
     @Volatile private var rootProcess: Process? = null
@@ -42,8 +42,6 @@ class RootVolumeMonitorService : Service() {
         var firstPressAt = 0L
         var failureMessage: String? = null
         try {
-            // 不预先枚举 event 节点：让 getevent 自行监听设备上的全部输入节点，
-            // 避免不同厂商设备的 event 节点数量/权限布局不同导致通配符失效。
             val process = ProcessBuilder("su", "-c", "exec /system/bin/getevent -lt")
                 .redirectErrorStream(true)
                 .start()
@@ -52,18 +50,21 @@ class RootVolumeMonitorService : Service() {
             BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
                 while (monitoring) {
                     val line = reader.readLine() ?: break
-                    // 不依赖 getevent 输出行的固定结尾格式。
-                    if (line.contains("KEY_VOLUMEDOWN") && Regex("\\bDOWN\\b").containsMatchIn(line)) {
+                    // 只统计音量下键的 DOWN；忽略 UP 和长按 REPEAT。
+                    if (line.contains("KEY_VOLUMEDOWN") &&
+                        Regex("\\b(?:DOWN|1)\\b", RegexOption.IGNORE_CASE).containsMatchIn(line)
+                    ) {
                         val now = SystemClock.elapsedRealtime()
                         if (count == 0 || now - firstPressAt > 3000L) {
                             count = 0
                             firstPressAt = now
                         }
                         count++
+                        updateNotification("已检测到音量下键：$count/5")
                         if (count >= 5) {
                             count = 0
                             firstPressAt = 0L
-                            returnToApp()
+                            launchMainActivity()
                         }
                     }
                 }
@@ -71,16 +72,64 @@ class RootVolumeMonitorService : Service() {
 
             if (monitoring) {
                 val exitCode = try { process.waitFor() } catch (_: InterruptedException) { -1 }
-                failureMessage = "Root 监听进程已退出（代码 $exitCode），请检查 Root 授权和设备输入事件支持"
+                failureMessage = "Root 按键监听进程已退出（代码 $exitCode），请检查 Root 授权"
             }
         } catch (e: Exception) {
-            failureMessage = "Root 音量键监听失败：" + (e.message ?: "请检查 Root 授权")
+            failureMessage = "Root 音量下键监听失败：" + (e.message ?: "请检查 Root 授权")
         } finally {
             rootProcess = null
             if (monitoring) {
                 monitoring = false
                 updateNotification(failureMessage ?: "监听已停止；请重新点击执行")
             }
+        }
+    }
+
+    /**
+     * 优先由应用自身的前台服务启动 Activity。
+     * Android 10+ 默认限制后台 Activity 启动，因此执行前要求用户授予
+     * “显示在其他应用上层”权限；该权限是 Android 官方列出的 BAL 例外。
+     * Root am start 作为兼容性回退，并使用明确的 Intent flags。
+     */
+    private fun launchMainActivity() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            )
+            putExtra("killsuoji_trigger", true)
+        }
+
+        try {
+            startActivity(intent)
+            updateNotification("已发送启动请求：KillSuoji 正在切到前台")
+            return
+        } catch (e: Exception) {
+            updateNotification("应用内启动受限，正在尝试 Root 启动")
+        }
+
+        try {
+            val command = "am start -W -a android.intent.action.MAIN " +
+                "-c android.intent.category.LAUNCHER -f 0x34020000 " +
+                "-n com.killsuoji.app/.MainActivity --ez killsuoji_trigger true"
+            val process = ProcessBuilder("su", "-c", command)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            val exitCode = process.waitFor()
+            val failed = exitCode != 0 ||
+                output.contains("Error:", ignoreCase = true) ||
+                output.contains("Exception", ignoreCase = true)
+            updateNotification(
+                if (failed) "已检测到 5 次音量下键，但启动失败：${output.take(120)}"
+                else "已发送 Root 启动请求；若未切到前台，请检查系统后台弹出限制"
+            )
+        } catch (e: Exception) {
+            updateNotification("已检测到 5 次音量下键，但启动失败：" + (e.message ?: "未知错误"))
         }
     }
 
@@ -92,49 +141,6 @@ class RootVolumeMonitorService : Service() {
         }
     }
 
-    private fun returnToApp() {
-        // 由 Root shell 启动 Activity，避免普通后台 Service 启动 Activity 被 Android
-        // 后台启动限制拦截。-W 等待 ActivityManager 返回结果，并检查是否启动成功。
-        var launchOutput = ""
-        var launchSucceeded = false
-        try {
-            val command = "am start -W --activity-new-task --activity-clear-top --activity-single-top " +
-                "--activity-reorder-to-front -n com.killsuoji.app/.MainActivity " +
-                "--ez killsuoji_trigger true"
-            val process = ProcessBuilder("su", "-c", command)
-                .redirectErrorStream(true)
-                .start()
-            launchOutput = process.inputStream.bufferedReader().use { it.readText() }
-            val exitCode = process.waitFor()
-            launchSucceeded = exitCode == 0 &&
-                !launchOutput.contains("Error:", ignoreCase = true) &&
-                !launchOutput.contains("Exception", ignoreCase = true)
-        } catch (e: Exception) {
-            launchOutput = e.message ?: e.javaClass.simpleName
-        }
-
-        if (!launchSucceeded) {
-            // Root shell 启动失败时再尝试应用自身启动，并保留明确的失败通知。
-            try {
-                val intent = Intent(this, MainActivity::class.java).apply {
-                    action = Intent.ACTION_MAIN
-                    addCategory(Intent.CATEGORY_LAUNCHER)
-                    addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-                    )
-                    putExtra("killsuoji_trigger", true)
-                }
-                startActivity(intent)
-            } catch (e: Exception) {
-                updateNotification("已检测到 5 次音量下键，但跳转失败：" +
-                    (e.message ?: launchOutput.take(100)))
-            }
-        }
-    }
-
     private fun createNotificationChannel() {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
@@ -142,7 +148,7 @@ class RootVolumeMonitorService : Service() {
         )
     }
 
-    private fun buildNotification(message: String = "Root 正在监听音量下键，连续按 5 次返回应用"): Notification {
+    private fun buildNotification(message: String = "Root 正在监听音量下键，3 秒内连续按 5 次启动应用"): Notification {
         val pending = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -157,8 +163,8 @@ class RootVolumeMonitorService : Service() {
     }
 
     private fun updateNotification(message: String) {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, buildNotification(message))
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, buildNotification(message))
     }
 
     override fun onDestroy() {
