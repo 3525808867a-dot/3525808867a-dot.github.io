@@ -3,10 +3,10 @@
 KillSuoji 是一款基于 Android 的 Root 工具应用。
 
 ## 当前版本
-- 版本：**V2.5.7**
+- 版本：**V2.5.8**
 - 平台：Android（最低支持 Android 8.0 / API 26）
-- APK：[下载 2.5.7.apk](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.7/2.5.7.apk)
-- killsuoji必要模块：[killsuoji-overlay-1.0.0-beta.zip](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.7/killsuoji-overlay-1.0.0-beta.zip)
+- APK：[下载 2.5.8.apk](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.8/2.5.8.apk)
+- killsuoji必要模块：[killsuoji-overlay-1.0.0-beta.zip](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.8/killsuoji-overlay-1.0.0-beta.zip)
 
 ## 功能简介
 - Root 权限检测及工作状态切换。
