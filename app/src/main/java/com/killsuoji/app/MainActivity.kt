@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.net.URL
 import androidx.compose.material3.OutlinedTextField
@@ -429,35 +430,38 @@ private fun LaunchScreen(
     installedApps: List<InstalledApp>, whitelist: Set<String>, onWhitelistChange: (String, Boolean) -> Unit,
     onToggle: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     var appSearch by remember { mutableStateOf("") }
     var rootLog by remember { mutableStateOf("正在读取 Root 启动日志…") }
     var logRefreshKey by remember { mutableIntStateOf(0) }
+    var copyMessage by remember { mutableStateOf("复制日志") }
 
-    // 从 Root 私有日志文件读取 watchdog 和 RootWindowMain 的启动过程。
-    LaunchedEffect(isWorking, logRefreshKey) {
-        suspend fun refreshRootLog() {
-            rootLog = withContext(Dispatchers.IO) {
-                try {
-                    val command = "LOG=/data/adb/killsuoji_overlay/root-window.log; " +
-                        "if [ -f \"\$LOG\" ]; then tail -n 100 \"\$LOG\"; else " +
-                        "echo '尚无日志文件：请点击执行启动 Root 窗口'; fi"
-                    val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
-                    val output = process.inputStream.bufferedReader().use { it.readText() }
-                    if (!process.waitFor(4, TimeUnit.SECONDS)) {
-                        process.destroyForcibly()
-                        "读取日志超时，请检查 Root 授权。"
-                    } else if (process.exitValue() != 0) {
-                        "读取日志失败（退出码：${process.exitValue()}）\\n$output"
-                    } else output.ifBlank { "日志文件为空，尚未记录启动信息。" }
-                } catch (e: Exception) {
-                    "读取日志异常：${e.message ?: "未知错误"}"
-                }
+    suspend fun readLatestRootLog(): String = withContext(Dispatchers.IO) {
+        try {
+            val command = "LOG=/data/adb/killsuoji_overlay/root-window.log; " +
+                "if [ -f \"\$LOG\" ]; then tail -n 160 \"\$LOG\"; else " +
+                "echo '尚无日志文件：等待执行启动'; fi"
+            val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                "读取日志超时，请检查 Root 授权。"
+            } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() }
+                if (process.exitValue() != 0) "读取日志失败（退出码：\${process.exitValue()}）\n$output"
+                else output.ifBlank { "日志文件为空，尚未记录启动信息。" }
             }
+        } catch (e: Exception) {
+            "读取日志异常：\${e.message ?: "未知错误"}"
         }
-        refreshRootLog()
+    }
+
+    LaunchedEffect(isWorking, logRefreshKey) {
+        delay(if (isWorking) 1200 else 500)
+        rootLog = readLatestRootLog()
         while (isWorking) {
-            delay(2000)
-            refreshRootLog()
+            delay(1500)
+            rootLog = readLatestRootLog()
         }
     }
 
@@ -471,7 +475,7 @@ private fun LaunchScreen(
                     isWorking -> "工作状态运行中。"
                     else -> "模块已安装并启用，可以执行"
                 }
-                Text("$status（白名单 ${whitelist.size} 个）", color = Color(0xFF68736D), fontSize = 14.sp)
+                Text("$status（白名单 \${whitelist.size} 个）", color = Color(0xFF68736D), fontSize = 14.sp)
             }
         }
         Card(modifier = Modifier.fillMaxWidth().clickable(enabled = moduleCheckComplete && moduleInstalled, onClick = onToggle)) {
@@ -490,11 +494,24 @@ private fun LaunchScreen(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("启动日志", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text("刷新", color = KsuAccent, modifier = Modifier.clickable { logRefreshKey++ })
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("刷新", color = KsuAccent, modifier = Modifier.clickable {
+                            logRefreshKey++
+                            copyMessage = "复制日志"
+                        })
+                        Text(copyMessage, color = KsuAccent, modifier = Modifier.clickable {
+                            scope.launch {
+                                val latest = readLatestRootLog()
+                                rootLog = latest
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("KillSuoji 启动日志", latest))
+                                copyMessage = "已复制"
+                            }
+                        })
+                    }
                 }
                 Text(rootLog, fontSize = 10.sp, color = Color(0xFF68736D), lineHeight = 14.sp, maxLines = 12)
-                Text("日志路径：/data/adb/killsuoji_overlay/root-window.log",
-                    fontSize = 9.sp, color = Color(0xFF999999))
+                Text("执行和停止后自动更新；复制时会重新读取最新日志。", fontSize = 9.sp, color = Color(0xFF999999))
             }
         }
         Text("添加应用白名单", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
