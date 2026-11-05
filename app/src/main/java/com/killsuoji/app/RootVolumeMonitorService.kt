@@ -93,17 +93,45 @@ class RootVolumeMonitorService : Service() {
     }
 
     private fun returnToApp() {
+        // 由 Root shell 启动 Activity，避免普通后台 Service 启动 Activity 被 Android
+        // 后台启动限制拦截。-W 等待 ActivityManager 返回结果，并检查是否启动成功。
+        var launchOutput = ""
+        var launchSucceeded = false
         try {
-            ProcessBuilder(
-                "su", "-c",
-                "am start --activity-single-top --activity-clear-top -n com.killsuoji.app/.MainActivity --ez killsuoji_trigger true"
-            ).redirectErrorStream(true).start().waitFor()
-        } catch (_: Exception) {
-            val intent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                putExtra("killsuoji_trigger", true)
+            val command = "am start -W --activity-new-task --activity-clear-top --activity-single-top " +
+                "--activity-reorder-to-front -n com.killsuoji.app/.MainActivity " +
+                "--ez killsuoji_trigger true"
+            val process = ProcessBuilder("su", "-c", command)
+                .redirectErrorStream(true)
+                .start()
+            launchOutput = process.inputStream.bufferedReader().use { it.readText() }
+            val exitCode = process.waitFor()
+            launchSucceeded = exitCode == 0 &&
+                !launchOutput.contains("Error:", ignoreCase = true) &&
+                !launchOutput.contains("Exception", ignoreCase = true)
+        } catch (e: Exception) {
+            launchOutput = e.message ?: e.javaClass.simpleName
+        }
+
+        if (!launchSucceeded) {
+            // Root shell 启动失败时再尝试应用自身启动，并保留明确的失败通知。
+            try {
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    action = Intent.ACTION_MAIN
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    )
+                    putExtra("killsuoji_trigger", true)
+                }
+                startActivity(intent)
+            } catch (e: Exception) {
+                updateNotification("已检测到 5 次音量下键，但跳转失败：" +
+                    (e.message ?: launchOutput.take(100)))
             }
-            startActivity(intent)
         }
     }
 
