@@ -10,10 +10,10 @@ KillSuoji 是一款基于 Android 的 Root 工具应用。
 
 ## 功能简介
 - Root 权限检测及工作状态切换。
-- 工作状态开启后显示固定的 killzuoji 悬浮窗。
+- 工作状态开启后由独立 UID 0 Root 进程创建 killzuoji 系统窗口，不依赖普通悬浮窗授权。
 - 控制台可管理应用白名单；勾选应用不会被结束，默认保护 KillSuoji 和 SukiSU。
-- 点击悬浮窗后，先结束非白名单用户应用，再由 Root 执行原启动脚本。
-- killsuoji必要模块在后台服务被回收后尝试重新拉起悬浮窗服务。
+- 点击 Root 窗口后，先结束非白名单用户应用，再由 Root 执行原启动脚本。
+- killsuoji必要模块负责守护 Root 窗口进程，并在进程退出后尝试重新启动。
 - 模块文件安装在 /data/adb/modules/killsuoji_overlay，不修改 /system、/vendor 等系统分区。
 
 ## 模块信息
@@ -22,4 +22,4 @@ KillSuoji 是一款基于 Android 的 Root 工具应用。
 - 模块采用 SukiSU 模块管理器格式；安装后需在 Root 管理器中启用模块并授予 KillSuoji Root 权限。
 
 ## 注意
-Android 系统强制停止应用、关闭悬浮窗权限或限制后台启动时，模块无法保证绕过系统限制。
+Root 窗口层级仍受 Android/厂商系统窗口权限策略约束；系统强制停止应用或限制后台启动时，模块无法保证绕过系统限制。
