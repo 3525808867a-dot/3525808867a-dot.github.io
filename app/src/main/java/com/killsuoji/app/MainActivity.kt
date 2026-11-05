@@ -204,8 +204,8 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("V2.5.3-PR-04", fontSize = 13.sp, color = Color(0xFF68736D))
-                        Text("当前为PR调试构建，请勿在生产环境中使用！",
+                        Text("V2.5.3 正式版", fontSize = 13.sp, color = Color(0xFF68736D))
+                        Text("正式版 · 需安装 SukiSU 常驻模块 1.0.0 beta",
                             fontSize = 12.sp, color = Color(0xFFD32F2F), fontWeight = FontWeight.SemiBold)
                     }
                     
@@ -363,8 +363,8 @@ private fun LaunchScreen(modifier: Modifier = Modifier, isWorking: Boolean, onTo
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Root 悬浮窗启动", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (isWorking) "工作状态运行中。点击固定在底部“首页”文字位置的 killzuoji 悬浮窗，即可由 Root 执行 /data/local/tmp/launch_killapp.sh。"
-                    else "点击执行开启工作状态并显示 killzuoji 悬浮窗；之后点击悬浮窗即可由 Root 执行启动脚本。",
+                    if (isWorking) "工作状态运行中。点击固定在底部“首页”文字位置的 killzuoji 悬浮窗，即可由 Root 执行启动脚本。SukiSU 模块负责在后台清理服务后尝试重新拉起悬浮窗。"
+                    else "点击执行开启工作状态并显示 killzuoji 悬浮窗；请先在 SukiSU 安装 KillSuoji Overlay Keeper 1.0.0 beta 模块。",
                     color = Color(0xFF68736D), fontSize = 14.sp
                 )
             }
