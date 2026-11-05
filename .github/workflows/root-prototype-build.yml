@@ -5,6 +5,7 @@ on:
     branches: [root-surface-prototype]
     paths:
       - "app/**"
+      - "permission-probe/**"
       - "build.gradle.kts"
       - "settings.gradle.kts"
       - "gradle.properties"
@@ -28,6 +29,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Diagnose Gradle projects and tasks
+        run: |
+          gradle projects
+          gradle :permission-probe:tasks --all
       - name: Build diagnostic APK
         run: gradle :permission-probe:assembleDebug
       - uses: actions/upload-artifact@v4
