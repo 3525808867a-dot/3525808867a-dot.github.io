@@ -1,5 +1,5 @@
 name: Build KillSuoji V3.1.2-PR overlay text fix
-# Stable signing and V3.1.2-PR overlay text fix build
+# Stable signing and V3.1.2-PR Root cleanup fix build
 
 on:
   push:
