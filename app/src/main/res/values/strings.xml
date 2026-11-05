@@ -1,4 +1,3 @@
 <resources>
     <string name="app_name">KillSuoji</string>
-    <string name="volume_down_accessibility_description">KillSuoji 工作时，连续按五次音量下键可返回 KillSuoji。</string>
 </resources>
