@@ -2,6 +2,10 @@
   "updated_at": "2026-11-06",
   "versions": [
     {
+      "version": "3.1.1",
+      "file": "3.1.1.apk"
+    },
+    {
       "version": "3.1.0",
       "file": "3.1.0.apk"
     },

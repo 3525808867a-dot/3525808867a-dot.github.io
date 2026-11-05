@@ -3,18 +3,18 @@
 KillSuoji 是一款基于 Android 的 Root 工具应用。
 
 ## 当前版本
-- 版本：**V3.1.0 正式版**
+- 版本：**V3.1.1 正式版**
 - 平台：Android（最低支持 Android 8.0 / API 26）
-- APK：[V3.1.0 正式版 APK 直接下载（3.1.0.apk）](https://raw.githubusercontent.com/3525808867a-dot/3525808867a-dot.github.io/main/downloads/3.1.0.apk)
+- APK：[V3.1.1 正式版 APK 直接下载（3.1.1.apk）](https://raw.githubusercontent.com/3525808867a-dot/3525808867a-dot.github.io/main/downloads/3.1.1.apk)
 - killsuoji必要模块：[killsuoji-overlay-1.0.0-beta.zip](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.6.3/killsuoji-overlay-1.0.0-beta.zip)
 
-## V3.1.0 正式版更新说明
-- 恢复 Root SurfaceControl 悬浮窗文字显示，并提示实际成功结束的非白名单第三方进程数量。
+## V3.1.1 正式版更新说明
+- 修复 Root SurfaceControl 悬浮窗初始化流程，增加 Surface / Canvas / Transaction 诊断日志；文字绘制失败时提供备用按钮绘制。\n- 保留 Root 手势监听与悬浮窗点击执行机制。
 - 设置页新增“工具 / 一键修复”，读取日志并尝试自动修复。
 - 3 秒内连续点击普通悬浮窗 5 次进入安全模式；安全模式悬浮窗不可拖动、不可点击。
 - 安全模式持续清理非白名单第三方进程，跳过所有系统进程和无法确认类别的进程。
 - 进入安全模式时尝试强制停止 Shizuku 服务，支持取消并显示持续时间。
-- V3.1.0 起统一使用新的稳定签名，后续版本可覆盖安装；从 V3.0.0 beta 首次升级需先卸载旧版。
+- V3.1.1 起统一使用新的稳定签名，后续版本可覆盖安装；从 V3.0.0 beta 首次升级需先卸载旧版。
 
 ## 功能简介
 - Root 权限检测及工作状态切换。
