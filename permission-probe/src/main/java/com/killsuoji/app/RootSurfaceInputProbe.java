@@ -77,12 +77,15 @@ public final class RootSurfaceInputProbe {
             call(tx, "apply");
             call(tx, "close");
             System.out.println("SurfaceControl：彩色测试层已提交");
-            System.out.println("请在屏幕左下方蓝色测试条上点击，测试输入事件。");
+            System.out.println("重叠测试开始：请保持本测试运行，并打开你之前提到的 Shizuku 软件悬浮窗。");
+            System.out.println("让对方悬浮窗覆盖蓝色测试条，再分别点击蓝色条和对方悬浮窗。");
+            System.out.println("本通道为被动监视：记录触摸但不消费事件，原应用应仍能收到触摸。");
             System.out.flush();
 
             final int hitLeft = left, hitTop = top;
             final int hitRight = left + width, hitBottom = top + height;
             final int[] tapCount = {0};
+            final int[] allUpCount = {0};
             receiver = new InputEventReceiver(channel, Looper.myLooper()) {
                 @Override
                 public void onInputEvent(InputEvent event) {
@@ -91,12 +94,18 @@ public final class RootSurfaceInputProbe {
                             MotionEvent motion = (MotionEvent) event;
                             if (motion.getActionMasked() == MotionEvent.ACTION_UP) {
                                 float x = motion.getRawX(), y = motion.getRawY();
-                                if (x >= hitLeft && x <= hitRight && y >= hitTop && y <= hitBottom) {
+                                allUpCount[0]++;
+                                boolean onBlue = x >= hitLeft && x <= hitRight
+                                        && y >= hitTop && y <= hitBottom;
+                                if (onBlue) {
                                     tapCount[0]++;
-                                    System.out.println("蓝色测试条收到点击 #" + tapCount[0]
+                                    System.out.println("蓝色测试条区域触摸 #" + tapCount[0]
                                             + " 坐标=(" + (int)x + "," + (int)y + ")");
-                                    System.out.flush();
+                                } else {
+                                    System.out.println("其他悬浮窗/屏幕区域触摸 #" + allUpCount[0]
+                                            + " 坐标=(" + (int)x + "," + (int)y + ")");
                                 }
+                                System.out.flush();
                             }
                         }
                     } finally {
@@ -106,9 +115,10 @@ public final class RootSurfaceInputProbe {
             };
 
             Looper looper = Looper.myLooper();
-            new Handler(looper).postDelayed(() -> looper.quit(), 20000);
+            new Handler(looper).postDelayed(() -> looper.quit(), 60000);
             Looper.loop();
-            System.out.println("20 秒测试结束，蓝色测试条点击次数：" + tapCount[0]);
+            System.out.println("60 秒重叠测试结束。蓝色测试条区域触摸：" + tapCount[0]
+                    + " 次；屏幕总触摸抬起事件：" + allUpCount[0] + " 次。");
         } catch (Throwable error) {
             System.out.println("原生 Surface/Input 测试失败：" + android.util.Log.getStackTraceString(error));
         } finally {
