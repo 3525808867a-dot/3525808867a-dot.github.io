@@ -116,7 +116,15 @@ public final class RootWindowMain {
                 Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
                 text.setColor(Color.WHITE);
                 text.setTextSize(12f * density);
-                text.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+                // Some vendor builds return null for named typefaces; never let font lookup
+                // abort native overlay startup. Paint keeps its platform default if unavailable.
+                try {
+                    Typeface fallbackTypeface = Typeface.DEFAULT_BOLD;
+                    if (fallbackTypeface == null) fallbackTypeface = Typeface.DEFAULT;
+                    if (fallbackTypeface != null) text.setTypeface(fallbackTypeface);
+                } catch (Throwable fontError) {
+                    writeLog("Typeface fallback unavailable; using Paint default", fontError);
+                }
                 text.setTextAlign(Paint.Align.CENTER);
                 Paint.FontMetrics fm = text.getFontMetrics();
                 float baseline = height / 2f - (fm.ascent + fm.descent) / 2f;
