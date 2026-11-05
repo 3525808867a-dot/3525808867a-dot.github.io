@@ -215,9 +215,24 @@ public final class RootWindowMain {
         writeLog("Normal overlay tap count=" + tapCount, null);
         if (tapCount >= 5 && now - firstTapAt <= 3000L) {
             tapCount = 0;
+            mainHandler.removeCallbacks(pendingSingleTap);
             enterSafetyMode();
-        } else executeNow();
+        } else {
+            // 五连击识别窗口内暂不触发单击；窗口结束后只执行一次普通操作。
+            mainHandler.removeCallbacks(pendingSingleTap);
+            mainHandler.postDelayed(pendingSingleTap, 3000L);
+        }
     }
+
+    private static final Runnable pendingSingleTap = new Runnable() {
+        @Override public void run() {
+            if (!safetyMode && tapCount > 0) {
+                writeLog("Single tap confirmed after three-second multi-tap window; dispatching once", null);
+                tapCount = 0;
+                executeNow();
+            }
+        }
+    };
 
     private static void enterSafetyMode() {
         if (safetyMode) return;
