@@ -430,6 +430,37 @@ private fun LaunchScreen(
     onToggle: () -> Unit
 ) {
     var appSearch by remember { mutableStateOf("") }
+    var rootLog by remember { mutableStateOf("正在读取 Root 启动日志…") }
+    var logRefreshKey by remember { mutableIntStateOf(0) }
+
+    // 从 Root 私有日志文件读取 watchdog 和 RootWindowMain 的启动过程。
+    LaunchedEffect(isWorking, logRefreshKey) {
+        suspend fun refreshRootLog() {
+            rootLog = withContext(Dispatchers.IO) {
+                try {
+                    val command = "LOG=/data/adb/killsuoji_overlay/root-window.log; " +
+                        "if [ -f \"$LOG\" ]; then tail -n 100 \"$LOG\"; else " +
+                        "echo '尚无日志文件：请点击执行启动 Root 窗口'; fi"
+                    val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+                    val output = process.inputStream.bufferedReader().use { it.readText() }
+                    if (!process.waitFor(4, TimeUnit.SECONDS)) {
+                        process.destroyForcibly()
+                        "读取日志超时，请检查 Root 授权。"
+                    } else if (process.exitValue() != 0) {
+                        "读取日志失败（退出码：${process.exitValue()}）\\n$output"
+                    } else output.ifBlank { "日志文件为空，尚未记录启动信息。" }
+                } catch (e: Exception) {
+                    "读取日志异常：${e.message ?: "未知错误"}"
+                }
+            }
+        }
+        refreshRootLog()
+        while (isWorking) {
+            delay(2000)
+            refreshRootLog()
+        }
+    }
+
     Column(modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -452,6 +483,18 @@ private fun LaunchScreen(
                     else -> "执行"
                 }, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
                     color = if (isWorking) Color(0xFFB42318) else if (moduleInstalled) KsuAccent else Color(0xFF999999))
+            }
+        }
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("启动日志", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("刷新", color = KsuAccent, modifier = Modifier.clickable { logRefreshKey++ })
+                }
+                Text(rootLog, fontSize = 10.sp, color = Color(0xFF68736D), lineHeight = 14.sp, maxLines = 12)
+                Text("日志路径：/data/adb/killsuoji_overlay/root-window.log",
+                    fontSize = 9.sp, color = Color(0xFF999999))
             }
         }
         Text("添加应用白名单", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
