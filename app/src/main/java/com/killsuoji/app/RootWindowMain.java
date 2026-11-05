@@ -34,20 +34,16 @@ public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
     private static final String SAFETY_FILE = "/data/adb/killsuoji_overlay/safety_mode";
-    private static final String BUILD_ID = "3.1.2-PR-no-text-red-safety";
+    private static final String BUILD_ID = "3.1.2-PR2-single-red-surface";
     private static SurfaceControl monitorSurface;
     private static SurfaceControl buttonControl;
     private static Surface buttonSurface;
-    private static SurfaceControl safetyControl;
-    private static Surface safetySurface;
     private static Handler mainHandler;
-    private static int left, top, width, height, mainHeight, cancelTop, cancelBottom, safetyHeight;
+    private static int left, top, width, height, mainHeight;
     private static float density;
     private static volatile boolean safetyMode = false;
     private static int tapCount = 0;
     private static long firstTapAt = 0L;
-    private static int rainbowIndex = 0;
-    private static final int[] RAINBOW = { Color.rgb(255,65,85), Color.rgb(255,145,40), Color.rgb(255,220,55), Color.rgb(65,220,110), Color.rgb(55,165,255), Color.rgb(175,95,255) };
 
     private static synchronized void writeLog(String message, Throwable error) {
         StringBuilder line = new StringBuilder();
@@ -112,9 +108,6 @@ public final class RootWindowMain {
             width = Math.max(1, (int) (128f * density));
             mainHeight = Math.max(1, (int) (36f * density));
             height = Math.max(1, (int) (68f * density));
-            cancelTop = mainHeight + Math.max(1, (int) (4f * density));
-            cancelBottom = cancelTop + Math.max(1, (int) (25f * density));
-            safetyHeight = mainHeight;
             left = Math.max(0, (int) (dm.widthPixels / 6f - 31f * density));
             top = Math.max(0, dm.heightPixels - (int) (34f * density) - height);
 
@@ -133,13 +126,11 @@ public final class RootWindowMain {
             writeLog("Native SurfaceControl button attached; monitor active at " + left + "," + top + " size " + width + "x" + height, null);
             if (safetyMode) {
                 writeLog("Restoring persisted safety mode after overlay restart", null);
-                createSafetyOverlay();
                 dispatchServiceAction("com.killsuoji.app.action.ENTER_SAFE_MODE");
             }
 
             final int hitLeft = left, hitRight = left + width, hitTop = top;
             final int mainHitBottom = top + mainHeight;
-            final int cancelHitTop = top + cancelTop, cancelHitBottom = top + cancelBottom;
             receiver = new InputEventReceiver(channel, Looper.myLooper()) {
                 @Override public void onInputEvent(InputEvent event) {
                     try {
@@ -147,9 +138,8 @@ public final class RootWindowMain {
                             MotionEvent motion = (MotionEvent) event;
                             if (motion.getActionMasked() == MotionEvent.ACTION_UP) {
                                 float x = motion.getRawX(), y = motion.getRawY();
-                                if (x >= hitLeft && x <= hitRight) {
-                                    if (safetyMode && y >= cancelHitTop && y <= cancelHitBottom) cancelSafetyMode();
-                                    else if (y >= hitTop && y <= mainHitBottom) handleNormalTap();
+                                if (!safetyMode && x >= hitLeft && x <= hitRight && y >= hitTop && y <= mainHitBottom) {
+                                    handleNormalTap();
                                 }
                             }
                         }
@@ -201,9 +191,6 @@ public final class RootWindowMain {
             canvas = buttonSurface.lockCanvas(null);
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
             drawNormalButtonBackground(canvas);
-            if (safetyMode) {
-                int ch = Math.max(1, (int)(25f * density));
-            }
             buttonSurface.unlockCanvasAndPost(canvas);
             canvas = null;
             writeLog("Normal button background posted; text rendering disabled for PR diagnosis", null);
@@ -218,13 +205,7 @@ public final class RootWindowMain {
     private static void drawNormalButtonBackground(Canvas canvas) {
         Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
         bg.setColor(safetyMode ? Color.RED : Color.BLACK);
-        canvas.drawRoundRect(0, 0, width, mainHeight, 8f * density, 8f * density, bg);
-        if (safetyMode) {
-            int ch = Math.max(1, (int)(25f * density));
-            Paint cbg = new Paint(Paint.ANTI_ALIAS_FLAG);
-            cbg.setColor(Color.RED);
-            canvas.drawRoundRect(0, cancelTop, width, cancelTop + ch, 7f * density, 7f * density, cbg);
-        }
+        canvas.drawRoundRect(0, 0, width, safetyMode ? height : mainHeight, 8f * density, 8f * density, bg);
     }
 
     private static void handleNormalTap() {
@@ -249,58 +230,7 @@ public final class RootWindowMain {
         } catch (Throwable error) { writeLog("Unable to persist safety mode state", error); }
         writeLog("Safety mode entered after five taps within three seconds", null);
         drawNormalButton();
-        createSafetyOverlay();
         dispatchServiceAction("com.killsuoji.app.action.ENTER_SAFE_MODE");
-    }
-
-    private static void createSafetyOverlay() {
-        if (!safetyMode || safetyControl != null) return;
-        try {
-            safetyControl = createSurface("KillSuoji-Safety-Mode-Passive", width, safetyHeight);
-            safetySurface = new Surface(safetyControl);
-            drawSafetyBanner();
-            int safeTop = Math.max(0, top - safetyHeight - Math.max(2, (int)(5f*density)));
-            applySurface(safetyControl, left, safeTop, Integer.MAX_VALUE - 1, width, safetyHeight);
-            writeLog("Passive safety overlay attached without touch or drag handling", null);
-        } catch (Throwable error) { writeLog("Safety overlay creation failed", error); removeSafetySurface(); }
-    }
-
-    private static void drawSafetyBanner() {
-        if (safetySurface == null || !safetyMode) return;
-        Canvas canvas = null;
-        try {
-            canvas = safetySurface.lockCanvas(null);
-            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
-            Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
-            bg.setColor(Color.RED);
-            canvas.drawRoundRect(0, 0, width, safetyHeight, 8f*density, 8f*density, bg);
-            safetySurface.unlockCanvasAndPost(canvas);
-        } catch (Throwable error) {
-            try { if (canvas != null) safetySurface.unlockCanvasAndPost(canvas); } catch (Throwable ignored) {}
-            writeLog("Safety banner draw failed", error);
-        }
-    }
-
-    private static void cancelSafetyMode() {
-        if (!safetyMode) return;
-        safetyMode = false;
-        try { new java.io.File(SAFETY_FILE).delete(); } catch (Throwable ignored) {}
-        writeLog("Safety mode cancelled by user", null);
-        removeSafetySurface();
-        drawNormalButton();
-        dispatchServiceAction("com.killsuoji.app.action.CANCEL_SAFE_MODE");
-    }
-
-    private static void removeSafetySurface() {
-        try {
-            if (safetyControl != null) {
-                SurfaceControl.Transaction tx = new SurfaceControl.Transaction();
-                call(tx, "hide", safetyControl); call(tx, "apply"); call(tx, "close");
-            }
-        } catch (Throwable ignored) {}
-        try { if (safetySurface != null) safetySurface.release(); } catch (Throwable ignored) {}
-        try { if (safetyControl != null) safetyControl.release(); } catch (Throwable ignored) {}
-        safetySurface = null; safetyControl = null;
     }
 
     private static void executeNow() {
