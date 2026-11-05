@@ -8,22 +8,13 @@ import android.app.Service
 import android.content.Intent
 import android.util.Base64
 import android.content.pm.ServiceInfo
-import android.graphics.PixelFormat
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
-import android.provider.Settings
-import android.view.Gravity
-import android.view.WindowManager
-import android.widget.TextView
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
-/** 用户主动开启工作状态后显示固定悬浮窗；点击悬浮窗执行 Root 启动脚本。 */
+/** 工作服务负责通知和 Root 操作；窗口由模块启动的独立 UID 0 进程创建。 */
 class RootVolumeMonitorService : Service() {
-    private var overlayView: TextView? = null
-    private var overlayWindowManager: WindowManager? = null
     @Volatile private var scriptRunning = false
 
     override fun onCreate() {
@@ -31,7 +22,6 @@ class RootVolumeMonitorService : Service() {
         createNotificationChannel()
         startForegroundCompat(buildNotification())
         startRootWatchdog()
-        showKillzuojiOverlay()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -40,85 +30,39 @@ class RootVolumeMonitorService : Service() {
             return START_STICKY
         }
         if (intent?.action == ACTION_STOP_WORKING) {
-            // 只有用户明确点击“停止”时才关闭独立 Root 守护进程。
             stopRootWatchdog()
-            removeKillzuojiOverlay()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
-        if (overlayView == null) showKillzuojiOverlay()
         return START_STICKY
     }
 
-    /** 固定在底部导航栏“首页”文字位置；可点击执行脚本，不可拖动。 */
-    private fun showKillzuojiOverlay() {
-        if (!Settings.canDrawOverlays(this) || overlayView != null) return
-        try {
-            val density = resources.displayMetrics.density
-            val label = TextView(this).apply {
-                text = "killzuoji"
-                setTextColor(android.graphics.Color.WHITE)
-                textSize = 12f
-                typeface = Typeface.DEFAULT_BOLD
-                gravity = Gravity.CENTER
-                setPadding((8 * density).toInt(), (5 * density).toInt(),
-                    (8 * density).toInt(), (5 * density).toInt())
-                background = GradientDrawable().apply {
-                    setColor(android.graphics.Color.BLACK)
-                    cornerRadius = 0f
-                }
-                importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_YES
-                setOnClickListener { executeLaunchScript() }
-            }
-            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.BOTTOM or Gravity.LEFT
-                x = (resources.displayMetrics.widthPixels / 6f - 31f * density).toInt().coerceAtLeast(0)
-                y = (34f * density).toInt()
-            }
-            wm.addView(label, params)
-            overlayWindowManager = wm
-            overlayView = label
-        } catch (_: Exception) {
-            overlayView = null
-            overlayWindowManager = null
-        }
-    }
-
-    /** 通过 SukiSU 模块启动独立 Root 用户态守护进程；状态保存在 /data/adb，跨重启保留。 */
+    /** 通过 SukiSU 模块启动 UID 0 窗口进程及守护进程。 */
     private fun startRootWatchdog() {
         val command = """
             MODDIR=/data/adb/modules/killsuoji_overlay
             STATE_DIR=/data/adb/killsuoji_overlay
-            mkdir -p "${'$'}STATE_DIR" || exit 1
-            if [ ! -f "${'$'}MODDIR/watchdog.sh" ]; then
+            mkdir -p "$STATE_DIR" || exit 1
+            if [ ! -f "$MODDIR/watchdog.sh" ]; then
               echo MODULE_MISSING
               exit 2
             fi
-            touch "${'$'}STATE_DIR/enabled"
-            chmod 700 "${'$'}MODDIR/watchdog.sh"
-            nohup sh "${'$'}MODDIR/watchdog.sh" >/dev/null 2>&1 </dev/null &
+            touch "$STATE_DIR/enabled"
+            chmod 700 "$MODDIR/watchdog.sh"
+            nohup sh "$MODDIR/watchdog.sh" >/dev/null 2>&1 </dev/null &
         """.trimIndent()
         try {
             val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
             val finished = process.waitFor(5, TimeUnit.SECONDS)
             if (!finished) {
                 process.destroyForcibly()
-                updateNotification("Root 守护进程启动超时")
+                updateNotification("Root 窗口守护进程启动超时")
             } else if (process.exitValue() != 0) {
-                updateNotification("未检测到 SukiSU 模块，请先安装 KillSuoji Overlay Keeper 1.0.0 beta")
+                updateNotification("未检测到 SukiSU 必要模块，请先安装模块")
             }
         } catch (_: Exception) {
-            updateNotification("无法启动 Root 守护进程，请检查 SukiSU Root 授权")
+            updateNotification("无法启动 Root 窗口，请检查 SukiSU Root 授权")
         }
     }
 
@@ -126,13 +70,14 @@ class RootVolumeMonitorService : Service() {
         try {
             val command = """
                 STATE_DIR=/data/adb/killsuoji_overlay
-                PIDFILE="${'$'}STATE_DIR/watchdog.pid"
-                rm -f "${'$'}STATE_DIR/enabled"
-                if [ -f "${'$'}PIDFILE" ]; then
-                  PID=$(cat "${'$'}PIDFILE" 2>/dev/null)
-                  [ -n "${'$'}PID" ] && kill "${'$'}PID" 2>/dev/null
-                  rm -f "${'$'}PIDFILE"
-                fi
+                rm -f "$STATE_DIR/enabled"
+                for PIDFILE in "$STATE_DIR/watchdog.pid" "$STATE_DIR/root-window.pid"; do
+                  if [ -f "$PIDFILE" ]; then
+                    PID=$(cat "$PIDFILE" 2>/dev/null)
+                    [ -n "$PID" ] && kill "$PID" 2>/dev/null
+                    rm -f "$PIDFILE"
+                  fi
+                done
             """.trimIndent()
             ProcessBuilder("su", "-c", command).start().waitFor(3, TimeUnit.SECONDS)
         } catch (_: Exception) { }
@@ -145,7 +90,7 @@ class RootVolumeMonitorService : Service() {
         }
         scriptRunning = true
         thread(name = "KillSuoji-Kill-And-Launch") {
-            updateNotification("正在并行结束非白名单应用，然后执行 launch_killapp.sh")
+            updateNotification("Root 窗口已触发，正在执行应用清理和启动脚本")
             try {
                 val prefs = getSharedPreferences("killsuoji_v2", MODE_PRIVATE)
                 val whitelist = (prefs.getStringSet("app_whitelist", emptySet()) ?: emptySet()) + packageName
@@ -186,7 +131,7 @@ class RootVolumeMonitorService : Service() {
         )
     }
 
-    private fun buildNotification(message: String = "点击悬浮窗或通知中的“立即执行”运行启动脚本"): Notification {
+    private fun buildNotification(message: String = "点击 Root 窗口或通知中的“立即执行”运行启动脚本"): Notification {
         val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
@@ -198,7 +143,7 @@ class RootVolumeMonitorService : Service() {
             android.R.drawable.ic_media_play, "立即执行", executePending
         ).build()
         return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentTitle("KillSuoji · 工作状态").setContentText(message)
+            .setContentTitle("KillSuoji · Root 工作状态").setContentText(message)
             .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
     }
 
@@ -206,16 +151,8 @@ class RootVolumeMonitorService : Service() {
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
     }
 
-    private fun removeKillzuojiOverlay() {
-        try { overlayView?.let { overlayWindowManager?.removeView(it) } } catch (_: Exception) { }
-        overlayView = null
-        overlayWindowManager = null
-    }
-
     override fun onDestroy() {
-        // 系统回收悬浮窗服务时不能关闭 watchdog；它需要负责重新拉起服务。
-        // 用户主动停止时，ACTION_STOP_WORKING 已先明确关闭 watchdog。
-        removeKillzuojiOverlay()
+        // 系统回收前台服务时不关闭 Root 窗口守护进程；它会负责重新拉起。
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
@@ -230,8 +167,7 @@ class RootVolumeMonitorService : Service() {
     }
 }
 
-
-/** 快捷设置磁贴备用入口：即使应用悬浮窗被其他窗口遮挡，也可从系统快捷设置触发同一 Root 操作。 */
+/** 快捷设置磁贴备用入口。 */
 class KillSuojiQuickSettingsTileService : android.service.quicksettings.TileService() {
     override fun onClick() {
         super.onClick()
