@@ -23,6 +23,7 @@ class RootVolumeMonitorService : Service() {
     @Volatile private var safeModeActive = false
     @Volatile private var safeModeStartedAt = 0L
     @Volatile private var safeModeThread: Thread? = null
+    @Volatile private var safeModeGeneration = 0
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
@@ -179,6 +180,7 @@ class RootVolumeMonitorService : Service() {
     private fun startSafetyMode() {
         if (safeModeActive) return
         safeModeActive = true
+        val generation = ++safeModeGeneration
         safeModeStartedAt = SystemClock.elapsedRealtime()
         try {
             ProcessBuilder("su", "-c", "mkdir -p /data/adb/killsuoji_overlay && touch /data/adb/killsuoji_overlay/safety_mode")
@@ -194,7 +196,7 @@ class RootVolumeMonitorService : Service() {
                         .redirectErrorStream(true).start()
                     stopShizuku.waitFor(10, TimeUnit.SECONDS)
                 } catch (_: Exception) { }
-                while (safeModeActive && !Thread.currentThread().isInterrupted) {
+                while (safeModeActive && generation == safeModeGeneration && !Thread.currentThread().isInterrupted) {
                     val count = cleanupThirdPartyProcesses()
                     updateNotification(if (count >= 0) "安全模式运行中：本轮结束 $count 个非白名单第三方进程"
                         else "安全模式运行中：本轮清理失败，请检查 Root 授权和日志")
@@ -203,7 +205,7 @@ class RootVolumeMonitorService : Service() {
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
             } finally {
-                safeModeThread = null
+                if (generation == safeModeGeneration) safeModeThread = null
             }
         }
     }
@@ -211,6 +213,7 @@ class RootVolumeMonitorService : Service() {
     private fun stopSafetyMode() {
         val wasActive = safeModeActive
         safeModeActive = false
+        safeModeGeneration++
         safeModeThread?.interrupt()
         safeModeThread = null
         try {
