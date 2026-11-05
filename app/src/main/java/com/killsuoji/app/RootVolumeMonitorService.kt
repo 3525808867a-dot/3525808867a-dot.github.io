@@ -35,6 +35,10 @@ class RootVolumeMonitorService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_EXECUTE_NOW) {
+            executeLaunchScript()
+            return START_STICKY
+        }
         if (intent?.action == ACTION_STOP_WORKING) {
             // 只有用户明确点击“停止”时才关闭独立 Root 守护进程。
             stopRootWatchdog()
@@ -182,12 +186,20 @@ class RootVolumeMonitorService : Service() {
         )
     }
 
-    private fun buildNotification(message: String = "点击 killzuoji 悬浮窗执行启动脚本"): Notification {
+    private fun buildNotification(message: String = "点击悬浮窗或通知中的“立即执行”运行启动脚本"): Notification {
         val pending = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val executeIntent = Intent(this, RootVolumeMonitorService::class.java).setAction(ACTION_EXECUTE_NOW)
+        val executePending = PendingIntent.getForegroundService(
+            this, 2402, executeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val executeAction = Notification.Action.Builder(
+            android.R.drawable.ic_media_play, "立即执行", executePending
+        ).build()
         return Notification.Builder(this, CHANNEL_ID).setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentTitle("KillSuoji · 工作状态").setContentText(message)
-            .setContentIntent(pending).setOngoing(true).build()
+            .setContentIntent(pending).addAction(executeAction).setOngoing(true).build()
     }
 
     private fun updateNotification(message: String) {
@@ -212,6 +224,7 @@ class RootVolumeMonitorService : Service() {
 
     companion object {
         const val ACTION_STOP_WORKING = "com.killsuoji.app.action.STOP_WORKING"
+        const val ACTION_EXECUTE_NOW = "com.killsuoji.app.action.EXECUTE_NOW"
         private const val CHANNEL_ID = "killsuoji_root_monitor"
         private const val NOTIFICATION_ID = 2401
     }
