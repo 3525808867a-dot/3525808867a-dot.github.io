@@ -10,6 +10,16 @@
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
         <service
+            android:name=".KillSuojiQuickSettingsTileService"
+            android:label="KillSuoji 执行"
+            android:icon="@android:drawable/ic_media_play"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <service
             android:name=".RootVolumeMonitorService"
             android:process=":overlay"
             android:exported="false"
