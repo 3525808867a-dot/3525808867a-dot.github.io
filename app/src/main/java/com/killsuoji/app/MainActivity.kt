@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showInterceptToast(intent: Intent?) {
         if (intent?.getBooleanExtra("killsuoji_trigger", false) == true) {
-            Toast.makeText(this, "拦截成功！", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "已启动 KillSuoji！", Toast.LENGTH_SHORT).show()
             intent.removeExtra("killsuoji_trigger")
         }
     }
@@ -334,8 +334,8 @@ private fun LaunchScreen(modifier: Modifier = Modifier, isWorking: Boolean, onTo
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Root 音量键拦截", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (isWorking) "Root 监听运行中：在任意应用连续按 5 次音量下键，返回 KillSuoji 并提示拦截成功！"
-                    else "点击执行后由 Root 读取系统输入事件，不需要开启辅助功能权限。",
+                    if (isWorking) "Root 监听运行中：在任意应用 3 秒内连续按 5 次音量下键，自动启动 KillSuoji。"
+                    else "点击执行后由 Root 监听音量下键；首次使用需允许“显示在其他应用上层”，无需辅助功能权限。",
                     color = Color(0xFF68736D), fontSize = 14.sp
                 )
             }
