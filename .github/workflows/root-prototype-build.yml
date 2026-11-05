@@ -3,7 +3,7 @@ name: Build KillSuoji V3.1.2-PR overlay text fix
 
 on:
   push:
-    branches: [root-surface-prototype, release/v3.1.0-formal, hotfix/v3.1.1-overlay-init, fix/v3.1.2-pr-overlay-text]
+    branches: [root-surface-prototype, release/v3.1.0-formal, hotfix/v3.1.1-overlay-init, fix/v3.1.2-overlay-text]
     paths:
       - "app/**"
       - "module/**"
