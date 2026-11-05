@@ -1,8 +1,19 @@
 name: Build KillSuoji root permission probe
+# Stable V3.1.0 signing and PR build support
 
 on:
   push:
     branches: [root-surface-prototype, release/v3.1.0-formal]
+    paths:
+      - "app/**"
+      - "module/**"
+      - "permission-probe/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/root-prototype-build.yml"
+  pull_request:
+    branches: [main]
     paths:
       - "app/**"
       - "module/**"
@@ -25,6 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -77,5 +90,5 @@ jobs:
           git add downloads/killsuoji-root-permission-probe.apk downloads/3.1.0.apk
           if ! git diff --cached --quiet; then
             git commit -m "Publish root permission probe APK"
-            git push
+            git push origin "HEAD:${{ github.head_ref || github.ref_name }}"
           fi
