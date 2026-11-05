@@ -86,7 +86,7 @@ class RootVolumeMonitorService : Service() {
 PIDFILE=/data/local/tmp/killsuoji_overlay_watchdog.pid
 ENABLED=/data/local/tmp/killsuoji_overlay_enabled
 if [ -f "${'$'}PIDFILE" ]; then
-  OLD_PID=$(${'$'}(cat "${'$'}PIDFILE" 2>/dev/null))
+  OLD_PID=${\u0024\u007b\u0027$\u0027\u007d}(cat "${\u0024\u007b\u0027$\u0027\u007d}PIDFILE" 2>/dev/null)
   if [ -n "${'$'}OLD_PID" ] && kill -0 "${'$'}OLD_PID" 2>/dev/null; then exit 0; fi
 fi
 echo ${'$'}${'$'} > "${'$'}PIDFILE"
