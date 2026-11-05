@@ -86,50 +86,35 @@ class RootVolumeMonitorService : Service() {
     }
 
     /**
-     * 优先由应用自身的前台服务启动 Activity。
-     * Android 10+ 默认限制后台 Activity 启动，因此执行前要求用户授予
-     * “显示在其他应用上层”权限；该权限是 Android 官方列出的 BAL 例外。
-     * Root am start 作为兼容性回退，并使用明确的 Intent flags。
+     * 五次音量下键触发后，直接通过 su 以 Root 身份启动主界面。
+     * 不依赖悬浮窗权限，也不先尝试普通应用身份的后台 Activity 启动。
      */
     private fun launchMainActivity() {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            action = Intent.ACTION_MAIN
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-            )
-            putExtra("killsuoji_trigger", true)
-        }
-
+        val command = "id; am start -W -a android.intent.action.MAIN " +
+            "-c android.intent.category.LAUNCHER -f 0x34020000 " +
+            "-n com.killsuoji.app/.MainActivity --ez killsuoji_trigger true"
         try {
-            startActivity(intent)
-            updateNotification("已发送启动请求：KillSuoji 正在切到前台")
-            return
-        } catch (e: Exception) {
-            updateNotification("应用内启动受限，正在尝试 Root 启动")
-        }
-
-        try {
-            val command = "am start -W -a android.intent.action.MAIN " +
-                "-c android.intent.category.LAUNCHER -f 0x34020000 " +
-                "-n com.killsuoji.app/.MainActivity --ez killsuoji_trigger true"
-            val process = ProcessBuilder("su", "-c", command)
-                .redirectErrorStream(true)
-                .start()
+            val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader().use { it.readText() }
-            val exitCode = process.waitFor()
-            val failed = exitCode != 0 ||
-                output.contains("Error:", ignoreCase = true) ||
-                output.contains("Exception", ignoreCase = true)
-            updateNotification(
-                if (failed) "已检测到 5 次音量下键，但启动失败：${output.take(120)}"
-                else "已发送 Root 启动请求；若未切到前台，请检查系统后台弹出限制"
-            )
+            val finished = process.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)
+            if (!finished) {
+                process.destroyForcibly()
+                updateNotification("Root 启动命令超时；请检查 Root 授权与系统启动限制")
+                return
+            }
+            val exitCode = process.exitValue()
+            val hasRoot = output.contains("uid=0")
+            val launchFailed = exitCode != 0 || output.contains("Error:", ignoreCase = true) ||
+                output.contains("Exception", ignoreCase = true) || output.contains("does not exist", ignoreCase = true)
+            updateNotification(when {
+                !hasRoot -> "未获得 Root 授权，启动失败：${output.take(100)}"
+                launchFailed -> "Root 已授权，但启动失败：${output.take(120)}"
+                output.contains("Status: ok", ignoreCase = true) || output.contains("Activity:", ignoreCase = true) ->
+                    "Root 已执行启动命令：正在打开 KillSuoji"
+                else -> "Root 启动命令已执行；若未显示，请检查系统是否限制后台启动"
+            })
         } catch (e: Exception) {
-            updateNotification("已检测到 5 次音量下键，但启动失败：" + (e.message ?: "未知错误"))
+            updateNotification("Root 启动失败：" + (e.message ?: "未知错误"))
         }
     }
 
