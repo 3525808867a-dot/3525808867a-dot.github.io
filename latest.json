@@ -1,15 +1,15 @@
 {
   "name": "KillSuoji Android 应用",
-  "version": "V2.5.1",
-  "version_code": 24,
+  "version": "V2.5.2",
+  "version_code": 25,
   "status": "available",
   "updated_at": "2026-11-05",
   "download_page": "https://3525808867a-dot.github.io/",
-  "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.1/2.5.1.apk",
+  "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.5.2/2.5.2.apk",
   "features": [
-    "首次启动时以 Root 创建 /data/local/tmp/launch_killapp.sh；文件已存在时不覆盖。",
-    "Root 监听全局音量下键；连续按 5 次后以 Root 执行启动脚本。",
-    "启动脚本尝试点亮屏幕并请求关闭锁屏界面，然后启动 KillSuoji。"
+    "Root 监听全局音量下键；连续按 5 次后触发快捷启动。",
+    "工作服务运行时，在屏幕底部导航栏“首页”位置显示固定黑底白字 killzuoji 悬浮窗。",
+    "悬浮窗不可点击、不可拖动；需授予 Android 悬浮窗权限。"
   ],
-  "notice": "V2.5.1 安装包已构建并发布，可下载。"
+  "notice": "V2.5.2 正式版正在构建发布。"
 }
