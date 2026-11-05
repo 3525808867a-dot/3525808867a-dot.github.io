@@ -68,26 +68,35 @@ jobs:
         run: |
           gradle projects
           gradle :permission-probe:tasks --all
-      - name: Build diagnostic and full V3.1.0 formal APKs
+      - name: Build diagnostic and both V3.1.0 signing variants
         run: |
           gradle :permission-probe:assembleDebug
           gradle :app:assembleDebug
-      - name: Verify APK signature matches the installed-version signing certificate
+          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/app-stable-signed.apk"
+          env -u KILLSUOJI_KEYSTORE_FILE -u KILLSUOJI_STORE_PASSWORD -u KILLSUOJI_KEY_ALIAS -u KILLSUOJI_KEY_PASSWORD gradle --no-daemon :app:assembleDebug
+      - name: Select APK with matching cover-install certificate
         run: |
           set -e
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           curl -fsSL "https://raw.githubusercontent.com/3525808867a-dot/3525808867a-dot.github.io/main/downloads/3.0.0-beta.apk" -o "$RUNNER_TEMP/previous-killsuoji.apk"
           OLD_CERT=$("$APKSIGNER" verify --print-certs "$RUNNER_TEMP/previous-killsuoji.apk" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')
-          NEW_CERT=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')
+          STABLE_CERT=$("$APKSIGNER" verify --print-certs "$RUNNER_TEMP/app-stable-signed.apk" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')
+          DEBUG_CERT=$("$APKSIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | awk -F': ' '/Signer #1 certificate SHA-256 digest:/ {print $2; exit}')
           test -n "$OLD_CERT"
-          test -n "$NEW_CERT"
-          echo "Previous APK certificate: $OLD_CERT"
-          echo "New APK certificate: $NEW_CERT"
-          if [ "$OLD_CERT" != "$NEW_CERT" ]; then
-            echo "::error::Signing certificate mismatch; this APK cannot cover-install over V3.0.0 beta."
+          test -n "$STABLE_CERT"
+          test -n "$DEBUG_CERT"
+          echo "Previous installed-version certificate: $OLD_CERT"
+          echo "Stable-keystore certificate: $STABLE_CERT"
+          echo "Default debug-keystore certificate: $DEBUG_CERT"
+          if [ "$STABLE_CERT" = "$OLD_CERT" ]; then
+            cp "$RUNNER_TEMP/app-stable-signed.apk" app/build/outputs/apk/debug/app-debug.apk
+            echo "Selected stable-signed APK; cover-install certificate matches."
+          elif [ "$DEBUG_CERT" = "$OLD_CERT" ]; then
+            echo "Selected default debug-signed APK; cover-install certificate matches."
+          else
+            echo "::error::Neither available signing key matches V3.0.0 beta. Refusing to publish an APK that cannot cover-install."
             exit 1
           fi
-          echo "Cover-install signature verified."
       - uses: actions/upload-artifact@v4
         with:
           name: killsuoji-v3.1.0-formal-apks
