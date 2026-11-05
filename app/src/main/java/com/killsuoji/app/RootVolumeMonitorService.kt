@@ -220,7 +220,7 @@ class RootVolumeMonitorService : Service() {
             ).apply {
                 gravity = Gravity.BOTTOM or Gravity.LEFT
                 x = (resources.displayMetrics.widthPixels / 6f - 31f * density).toInt().coerceAtLeast(0)
-                y = (55f * density).toInt()
+                y = (34f * density).toInt()
             }
             wm.addView(label, params)
             overlayWindowManager = wm
