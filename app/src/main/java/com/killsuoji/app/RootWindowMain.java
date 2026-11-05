@@ -1,6 +1,5 @@
 package com.killsuoji.app;
 
-import android.app.ActivityThread;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -24,7 +23,9 @@ public final class RootWindowMain {
     public static void main(String[] args) {
         try {
             Looper.prepareMainLooper();
-            Context context = ActivityThread.systemMain().getSystemContext();
+            Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
+            Object activityThread = activityThreadClass.getMethod("systemMain").invoke(null);
+            Context context = (Context) activityThreadClass.getMethod("getSystemContext").invoke(activityThread);
             WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
             if (wm == null) throw new IllegalStateException("WindowManager unavailable");
 
