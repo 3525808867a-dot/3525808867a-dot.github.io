@@ -2,7 +2,7 @@
   "name": "KillSuoji Android 应用",
   "version": "V2.4.4 beta",
   "version_code": 17,
-  "status": "building",
+  "status": "available",
   "updated_at": "2026-11-05",
   "download_page": "https://3525808867a-dot.github.io/",
   "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.4.4/2.4.4.apk",
@@ -12,5 +12,5 @@
     "工作中连续按 5 次音量下键，返回 KillSuoji 并提示拦截成功。",
     "Root 权限监听全局音量下键，无需辅助功能授权，点击停止即可结束监听。"
   ],
-  "notice": "V2.4.4 beta 正在构建，安装包尚未发布。"
+  "notice": "V2.4.4 beta 安装包构建并发布后即可下载。"
 }
