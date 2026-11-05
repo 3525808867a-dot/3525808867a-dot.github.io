@@ -119,15 +119,6 @@ private fun KillSuojiApp() {
                             Toast.makeText(context, "Root 音量键监听启动失败：" + (e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
                         }
                     } else {
-                            try {
-                                context.startForegroundService(Intent(context, RootVolumeMonitorService::class.java))
-                                isWorking = true
-                                prefs.edit().putBoolean("is_working", true).apply()
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Root 音量键监听启动失败：" + (e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    } else {
                         context.stopService(Intent(context, RootVolumeMonitorService::class.java))
                         isWorking = false
                         prefs.edit().putBoolean("is_working", false).apply()
