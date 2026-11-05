@@ -134,34 +134,42 @@ class RootVolumeMonitorService : Service() {
 
     private fun executeLaunchScript() {
         if (scriptRunning) {
-            updateNotification("启动脚本正在执行，请稍候")
+            updateNotification("进程清理或启动脚本正在执行，请稍候")
             return
         }
         scriptRunning = true
-        updateNotification("已点击 killzuoji，正在结束非白名单应用，然后执行启动脚本")
+        updateNotification("正在结束非白名单应用，然后执行 launch_killapp.sh")
         thread(name = "KillSuoji-Kill-And-Launch") {
             try {
                 val prefs = getSharedPreferences("killsuoji_v2", MODE_PRIVATE)
                 val whitelist = (prefs.getStringSet("app_whitelist", emptySet()) ?: emptySet()) + packageName
-                val whitelistText = whitelist.sorted().joinToString("\\n")
+                val whitelistText = whitelist.sorted().joinToString("\n")
                 val encoded = Base64.encodeToString(whitelistText.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
                 val rootCommand = """
                     WL_FILE=/data/local/tmp/killsuoji_whitelist.txt
                     echo '$encoded' | base64 -d > "$WL_FILE" || exit 20
                     pm list packages -3 | while IFS= read -r line; do
-                      pkg=${'
-                    .redirectErrorStream(true).start()
-                val finished = process.waitFor(60, TimeUnit.SECONDS)
+                      pkg=\${'$'}{line#package:}
+                      [ -z "\${'$'}pkg" ] && continue
+                      if ! grep -Fxq "\${'$'}pkg" "$WL_FILE"; then
+                        am force-stop "\${'$'}pkg" >/dev/null 2>&1
+                      fi
+                    done
+                    rm -f "$WL_FILE"
+                    sh /data/local/tmp/launch_killapp.sh
+                """.trimIndent()
+                val process = ProcessBuilder("su", "-c", rootCommand).redirectErrorStream(true).start()
+                val finished = process.waitFor(90, TimeUnit.SECONDS)
                 if (!finished) {
                     process.destroyForcibly()
-                    updateNotification("启动脚本执行超时")
+                    updateNotification("应用清理或 launch_killapp.sh 执行超时")
                 } else {
                     val output = process.inputStream.bufferedReader().use { it.readText() }
-                    updateNotification(if (process.exitValue() == 0) "非白名单应用已结束，Root 启动脚本执行完成"
-                        else "启动脚本执行失败（${process.exitValue()}）：${output.take(100)}")
+                    updateNotification(if (process.exitValue() == 0) "非白名单应用已结束，launch_killapp.sh 执行完成"
+                        else "进程清理或启动脚本执行失败（${process.exitValue()}）：${output.take(100)}")
                 }
             } catch (e: Exception) {
-                updateNotification("结束应用或执行启动脚本失败： + (e.message ?: "未知错误"))
+                updateNotification("结束应用或执行启动脚本失败：" + (e.message ?: "未知错误"))
             } finally {
                 scriptRunning = false
             }
