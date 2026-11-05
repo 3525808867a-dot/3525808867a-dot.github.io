@@ -439,7 +439,7 @@ private fun LaunchScreen(
             rootLog = withContext(Dispatchers.IO) {
                 try {
                     val command = "LOG=/data/adb/killsuoji_overlay/root-window.log; " +
-                        "if [ -f \"\\$LOG\" ]; then tail -n 100 \"\\$LOG\"; else " +
+                        "if [ -f \"\$LOG\" ]; then tail -n 100 \"\$LOG\"; else " +
                         "echo '尚无日志文件：请点击执行启动 Root 窗口'; fi"
                     val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
                     val output = process.inputStream.bufferedReader().use { it.readText() }
