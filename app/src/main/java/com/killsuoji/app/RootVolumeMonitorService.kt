@@ -138,8 +138,8 @@ class RootVolumeMonitorService : Service() {
             return
         }
         scriptRunning = true
-        updateNotification("正在结束非白名单应用，然后执行 launch_killapp.sh")
         thread(name = "KillSuoji-Kill-And-Launch") {
+            updateNotification("正在并行结束非白名单应用，然后执行 launch_killapp.sh")
             try {
                 val prefs = getSharedPreferences("killsuoji_v2", MODE_PRIVATE)
                 val whitelist = (prefs.getStringSet("app_whitelist", emptySet()) ?: emptySet()) + packageName
@@ -147,7 +147,7 @@ class RootVolumeMonitorService : Service() {
                 val encoded = Base64.encodeToString(whitelistText.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
                 val rootCommand = """
                     echo '$encoded' | base64 -d > /data/local/tmp/killsuoji_whitelist.txt || exit 20
-                    pm list packages -3 | cut -d: -f2 | grep -vxFf /data/local/tmp/killsuoji_whitelist.txt | xargs -r -P 8 -n 1 sh -c 'am force-stop "$1" >/dev/null 2>&1' sh
+                    pm list packages -3 | cut -d: -f2 | grep -vxFf /data/local/tmp/killsuoji_whitelist.txt | xargs -r -P 16 -n 1 am force-stop >/dev/null 2>&1
                     rm -f /data/local/tmp/killsuoji_whitelist.txt
                     sh /data/local/tmp/launch_killapp.sh
                 """.trimIndent()
@@ -158,7 +158,7 @@ class RootVolumeMonitorService : Service() {
                     updateNotification("应用清理或 launch_killapp.sh 执行超时")
                 } else {
                     val output = process.inputStream.bufferedReader().use { it.readText() }
-                    updateNotification(if (process.exitValue() == 0) "非白名单应用已结束，launch_killapp.sh 执行完成"
+                    updateNotification(if (process.exitValue() == 0) "非白名单应用已并行结束，launch_killapp.sh 执行完成"
                         else "进程清理或启动脚本执行失败（${process.exitValue()}）：${output.take(100)}")
                 }
             } catch (e: Exception) {
