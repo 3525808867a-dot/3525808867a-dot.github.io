@@ -6,7 +6,7 @@ KillSuoji 是一款基于 Android 的工具应用，提供 Root 权限检测及�
 - 版本：**V2.4.3 beta**
 - 平台：Android（最低支持 Android 8.0 / API 26）
 - 下载页：https://3525808867a-dot.github.io/
-- APK：[2.4.3.apk](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.4.3/2.4.3.apk)
+- APK：[2.4.3.apk](https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/V2.4.3 beta/2.4.3.apk)
 
 ## 功能简介
 - **Root 权限检测**：通过执行 `su -c id` 并确认 UID 为 0，判断是否获得 Root 权限。
