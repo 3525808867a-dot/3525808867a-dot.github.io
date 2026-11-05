@@ -110,32 +110,43 @@ class RootVolumeMonitorService : Service() {
         return KEY_DOWN_VALUE.containsMatchIn(line)
     }
 
-    /** 每累计五次音量下键，只以 Root 身份执行一次用户指定的启动脚本。 */
+    /** 五次音量下键触发：先停止所有第三方应用，再执行既有启动脚本。 */
     private fun launchMainActivity() {
         val scriptPath = "/data/local/tmp/launch_killapp.sh"
         try {
-            // Root 为应用授予 SYSTEM_ALERT_WINDOW AppOp（无需显示悬浮窗），以满足 Android 后台 Activity 启动例外；随后执行用户现有脚本。
-            val command = "/system/bin/appops set com.killsuoji.app SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1; sh '$scriptPath'"
+            updateNotification("已触发快捷键，正在清理前台和后台应用进程…")
+            // 仅停止第三方应用（pm -3），保护 Android 系统组件及 KillSuoji 自身。
+            // 清理完成后才执行启动脚本，避免 Activity 先跳转而中断清理。
+            val command =
+                "/system/bin/appops set com.killsuoji.app SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1; " +
+                "count=0; " +
+                "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
+                "[ -n \"\$pkg\" ] || continue; " +
+                "[ \"\$pkg\" = 'com.killsuoji.app' ] && continue; " +
+                "am force-stop --user 0 \"\$pkg\" >/dev/null 2>&1; " +
+                "count=\$((count + 1)); " +
+                "done; echo CLEANED:\$count; sh '$scriptPath'"
             val process = ProcessBuilder("su", "-c", command)
                 .redirectErrorStream(true)
                 .start()
-            val finished = process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS)
+            val finished = process.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)
             if (!finished) {
                 process.destroyForcibly()
-                updateNotification("Root 启动脚本执行超时，请检查脚本与 Root 授权")
+                updateNotification("应用进程清理超时，未继续跳转")
                 return
             }
             val output = process.inputStream.bufferedReader().use { it.readText() }
             val exitCode = process.exitValue()
+            val cleaned = Regex("CLEANED:(\\d+)").find(output)?.groupValues?.get(1) ?: "未知"
             updateNotification(
                 if (exitCode == 0 && !output.contains("Error:", ignoreCase = true)) {
-                    "已由 Root 执行 launch_killapp.sh"
+                    "已清理第三方应用进程（$cleaned 个），正在启动 KillSuoji"
                 } else {
-                    "Root 启动脚本执行失败（$exitCode）：${output.take(120)}"
+                    "清理或启动失败（$exitCode）：${output.take(120)}"
                 }
             )
         } catch (e: Exception) {
-            updateNotification("Root 启动脚本执行失败：" + (e.message ?: "未知错误"))
+            updateNotification("Root 清理/启动失败：" + (e.message ?: "未知错误"))
         }
     }
 
