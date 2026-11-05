@@ -57,7 +57,7 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk downloads/3.0.0-beta.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add downloads/killsuoji-root-permission-probe.apk downloads/2.6.3-PR-07.apk
+          git add downloads/killsuoji-root-permission-probe.apk downloads/3.0.0-beta.apk
           if ! git diff --cached --quiet; then
             git commit -m "Publish root permission probe APK"
             git push
