@@ -197,7 +197,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("V2.5.3 PR", fontSize = 13.sp, color = Color(0xFF68736D))
+                        Text("V2.5.3-PR-02", fontSize = 13.sp, color = Color(0xFF68736D))
                         Text("当前为PR调试构建，请勿在生产环境中使用！",
                             fontSize = 12.sp, color = Color(0xFFD32F2F), fontWeight = FontWeight.SemiBold)
                     }
