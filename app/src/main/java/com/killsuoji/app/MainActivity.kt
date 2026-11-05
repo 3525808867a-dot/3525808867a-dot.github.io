@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.net.URL
 import androidx.compose.material3.OutlinedTextField
@@ -273,7 +274,12 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("V${BuildConfig.VERSION_NAME} 正式版", fontSize = 13.sp, color = Color(0xFF68736D))
+                        Text(
+                            if (BuildConfig.VERSION_NAME.endsWith("-beta", ignoreCase = true))
+                                "V${BuildConfig.VERSION_NAME.removeSuffix("-beta")} beta"
+                            else "V${BuildConfig.VERSION_NAME}",
+                            fontSize = 13.sp, color = Color(0xFF68736D)
+                        )
                     }
                     
                 }
@@ -429,7 +435,40 @@ private fun LaunchScreen(
     installedApps: List<InstalledApp>, whitelist: Set<String>, onWhitelistChange: (String, Boolean) -> Unit,
     onToggle: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     var appSearch by remember { mutableStateOf("") }
+    var rootLog by remember { mutableStateOf("正在读取 Root 启动日志…") }
+    var logRefreshKey by remember { mutableIntStateOf(0) }
+    var copyMessage by remember { mutableStateOf("复制日志") }
+
+    suspend fun readLatestRootLog(): String = withContext(Dispatchers.IO) {
+        try {
+            val command = "LOG=/data/adb/killsuoji_overlay/root-window.log; " +
+                "if [ -f \"\$LOG\" ]; then tail -n 160 \"\$LOG\"; else " +
+                "echo '尚无日志文件：等待执行启动'; fi"
+            val process = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                "读取日志超时，请检查 Root 授权。"
+            } else if (process.exitValue() != 0) {
+                "读取日志失败（退出码：${process.exitValue()}）\n$output"
+            } else output.ifBlank { "日志文件为空，尚未记录启动信息。" }
+        } catch (e: Exception) {
+            "读取日志异常：${e.message ?: "未知错误"}"
+        }
+    }
+
+    LaunchedEffect(isWorking, logRefreshKey) {
+        delay(if (isWorking) 1200 else 3800)
+        rootLog = readLatestRootLog()
+        while (isWorking) {
+            delay(1500)
+            rootLog = readLatestRootLog()
+        }
+    }
+
     Column(modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -454,6 +493,32 @@ private fun LaunchScreen(
                     color = if (isWorking) Color(0xFFB42318) else if (moduleInstalled) KsuAccent else Color(0xFF999999))
             }
         }
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("启动日志", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("刷新", color = KsuAccent, modifier = Modifier.clickable {
+                            logRefreshKey++
+                            copyMessage = "复制日志"
+                        })
+                        Text(copyMessage, color = KsuAccent, modifier = Modifier.clickable {
+                            scope.launch {
+                                val latest = readLatestRootLog()
+                                rootLog = latest
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("KillSuoji 启动日志", latest))
+                                copyMessage = "已复制"
+                            }
+                        })
+                    }
+                }
+                // 收紧日志预览高度，把更多屏幕空间留给可滚动的应用白名单。
+                Text(rootLog, fontSize = 9.sp, color = Color(0xFF68736D), lineHeight = 12.sp, maxLines = 4)
+                Text("执行和停止后自动更新；复制时会重新读取最新日志。", fontSize = 9.sp, color = Color(0xFF999999), maxLines = 1)
+            }
+        }
         Text("添加应用白名单", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         Text("勾选的应用不会被结束。", fontSize = 12.sp, color = Color(0xFF777777))
         OutlinedTextField(
@@ -463,17 +528,25 @@ private fun LaunchScreen(
             singleLine = true,
             placeholder = { androidx.compose.material3.Text("输入应用名称或包名搜索") }
         )
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        // 过滤和排序只在数据变化时执行，避免每次滚动重组都全量排序。
+        val orderedApps = remember(installedApps, whitelist, appSearch) {
             val keyword = appSearch.trim()
-            val ordered = installedApps
+            installedApps.asSequence()
                 .filter { keyword.isEmpty() || it.label.contains(keyword, ignoreCase = true) || it.packageName.contains(keyword, ignoreCase = true) }
                 .sortedWith(compareByDescending<InstalledApp> { it.packageName in whitelist }.thenBy { it.label.lowercase() })
-            items(ordered, key = { it.packageName }) { app ->
+                .toList()
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+            contentPadding = PaddingValues(bottom = 12.dp)
+        ) {
+            items(items = orderedApps, key = { it.packageName }, contentType = { "installed-app" }) { app ->
                 val checked = app.packageName in whitelist
                 Card(modifier = Modifier.fillMaxWidth().clickable {
                     if (app.packageName != "com.killsuoji.app") onWhitelistChange(app.packageName, !checked)
                 }) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 54.dp).padding(horizontal = 14.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(app.label, fontSize = 14.sp, fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal)
                             Text(app.packageName, fontSize = 10.sp, color = Color(0xFF888888))

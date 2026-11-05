@@ -10,8 +10,8 @@ android {
         applicationId = "com.killsuoji.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 42
-        versionName = "2.6.3"
+        versionCode = 46
+        versionName = "3.0.0-beta"
     }
     val stableKeystorePath = System.getenv("KILLSUOJI_KEYSTORE_FILE")
     if (!stableKeystorePath.isNullOrBlank()) {
@@ -34,6 +34,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
+    compileOnly("org.robolectric:android-all:16-robolectric-13921718")
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.compose.ui:ui")
