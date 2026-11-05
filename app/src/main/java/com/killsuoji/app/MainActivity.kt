@@ -177,7 +177,7 @@ private fun KillSuojiApp() {
                     onWhitelistChange = { pkg, checked ->
                         whitelist = if (checked) whitelist + pkg else whitelist - pkg
                         whitelist = whitelist + context.packageName
-                        prefs.edit().putStringSet("app_whitelist", whitelist).apply()
+                        prefs.edit().putStringSet("app_whitelist", whitelist.toMutableSet()).apply()
                     }
                 ) {
                     val next = !isWorking
