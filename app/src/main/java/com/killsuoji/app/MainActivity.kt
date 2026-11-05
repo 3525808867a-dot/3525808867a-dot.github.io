@@ -110,12 +110,21 @@ private fun KillSuojiApp() {
                 1 -> if (rootDetected) LaunchScreen(Modifier.padding(padding), isWorking) {
                     val next = !isWorking
                     if (next) {
-                        try {
-                            context.startForegroundService(Intent(context, RootVolumeMonitorService::class.java))
-                            isWorking = true
-                            prefs.edit().putBoolean("is_working", true).apply()
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Root 音量键监听启动失败：" + (e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                            Toast.makeText(context, "请先允许 KillSuoji 显示在其他应用上层，才能从后台自动切到前台", Toast.LENGTH_LONG).show()
+                            val overlayIntent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:" + context.packageName)
+                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(overlayIntent)
+                        } else {
+                            try {
+                                context.startForegroundService(Intent(context, RootVolumeMonitorService::class.java))
+                                isWorking = true
+                                prefs.edit().putBoolean("is_working", true).apply()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Root 音量键监听启动失败：" + (e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
+                            }
                         }
                     } else {
                         context.stopService(Intent(context, RootVolumeMonitorService::class.java))
@@ -169,7 +178,7 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                         fontSize = 14.sp, fontWeight = FontWeight.SemiBold
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("V2.4.4 beta", fontSize = 13.sp, color = Color(0xFF68736D))
+                    Text("V2.4.5 beta", fontSize = 13.sp, color = Color(0xFF68736D))
                     
                 }
             }
