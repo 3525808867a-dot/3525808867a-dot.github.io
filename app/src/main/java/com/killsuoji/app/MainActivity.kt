@@ -274,7 +274,12 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
                     )
                     Text(if (isWorking) "KillSuoji · 工作中" else "KillSuoji", fontSize = 25.sp, fontWeight = FontWeight.Bold)
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("V${BuildConfig.VERSION_NAME} 调试版", fontSize = 13.sp, color = Color(0xFF68736D))
+                        Text(
+                            if (BuildConfig.VERSION_NAME.endsWith("-beta", ignoreCase = true))
+                                "V${BuildConfig.VERSION_NAME.removeSuffix("-beta")} beta"
+                            else "V${BuildConfig.VERSION_NAME}",
+                            fontSize = 13.sp, color = Color(0xFF68736D)
+                        )
                     }
                     
                 }
@@ -509,8 +514,9 @@ private fun LaunchScreen(
                         })
                     }
                 }
-                Text(rootLog, fontSize = 10.sp, color = Color(0xFF68736D), lineHeight = 14.sp, maxLines = 12)
-                Text("执行和停止后自动更新；复制时会重新读取最新日志。", fontSize = 9.sp, color = Color(0xFF999999))
+                // 收紧日志预览高度，把更多屏幕空间留给可滚动的应用白名单。
+                Text(rootLog, fontSize = 9.sp, color = Color(0xFF68736D), lineHeight = 12.sp, maxLines = 4)
+                Text("执行和停止后自动更新；复制时会重新读取最新日志。", fontSize = 9.sp, color = Color(0xFF999999), maxLines = 1)
             }
         }
         Text("添加应用白名单", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
@@ -522,17 +528,25 @@ private fun LaunchScreen(
             singleLine = true,
             placeholder = { androidx.compose.material3.Text("输入应用名称或包名搜索") }
         )
-        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        // 过滤和排序只在数据变化时执行，避免每次滚动重组都全量排序。
+        val orderedApps = remember(installedApps, whitelist, appSearch) {
             val keyword = appSearch.trim()
-            val ordered = installedApps
+            installedApps.asSequence()
                 .filter { keyword.isEmpty() || it.label.contains(keyword, ignoreCase = true) || it.packageName.contains(keyword, ignoreCase = true) }
                 .sortedWith(compareByDescending<InstalledApp> { it.packageName in whitelist }.thenBy { it.label.lowercase() })
-            items(ordered, key = { it.packageName }) { app ->
+                .toList()
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+            contentPadding = PaddingValues(bottom = 12.dp)
+        ) {
+            items(items = orderedApps, key = { it.packageName }, contentType = { "installed-app" }) { app ->
                 val checked = app.packageName in whitelist
                 Card(modifier = Modifier.fillMaxWidth().clickable {
                     if (app.packageName != "com.killsuoji.app") onWhitelistChange(app.packageName, !checked)
                 }) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 54.dp).padding(horizontal = 14.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(app.label, fontSize = 14.sp, fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal)
                             Text(app.packageName, fontSize = 10.sp, color = Color(0xFF888888))
