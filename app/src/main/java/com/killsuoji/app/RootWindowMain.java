@@ -34,7 +34,7 @@ public final class RootWindowMain {
     private static final String TAG = "KillSuojiRootWindow";
     private static final String LOG_FILE = "/data/adb/killsuoji_overlay/root-window.log";
     private static final String SAFETY_FILE = "/data/adb/killsuoji_overlay/safety_mode";
-    private static final String BUILD_ID = "3.1.0-formal";
+    private static final String BUILD_ID = "3.1.1-overlay-init-hotfix";
     private static SurfaceControl monitorSurface;
     private static SurfaceControl buttonControl;
     private static Surface buttonSurface;
@@ -103,6 +103,7 @@ public final class RootWindowMain {
             writeLog("Gesture input monitor created", null);
             InputChannel channel = (InputChannel) call(monitor, "getInputChannel");
             monitorSurface = (SurfaceControl) call(monitor, "getSurface");
+            writeLog("Gesture monitor surface acquired; valid=" + (monitorSurface != null && monitorSurface.isValid()), null);
 
             WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
             DisplayMetrics dm = new DisplayMetrics();
@@ -120,9 +121,13 @@ public final class RootWindowMain {
             writeLog("Building SurfaceControl button", null);
             safetyMode = new java.io.File(SAFETY_FILE).exists();
             buttonControl = createSurface("KillSuoji-Root-Button", width, height);
-            writeLog("SurfaceControl button built", null);
+            writeLog("SurfaceControl button built; valid=" + (buttonControl != null && buttonControl.isValid())
+                + "; buffer=" + width + "x" + height, null);
+            writeLog("Creating drawing Surface from button SurfaceControl", null);
             buttonSurface = new Surface(buttonControl);
+            writeLog("Button Surface created; valid=" + buttonSurface.isValid(), null);
             drawNormalButton();
+            writeLog("Applying button SurfaceControl transaction", null);
             applySurface(buttonControl, left, top, Integer.MAX_VALUE - 2, width, height);
             writeLog("SurfaceControl transaction applied", null);
             writeLog("Native SurfaceControl button attached; monitor active at " + left + "," + top + " size " + width + "x" + height, null);
@@ -196,27 +201,49 @@ public final class RootWindowMain {
     }
 
     private static void drawNormalButton() {
-        if (buttonSurface == null) return;
+        if (buttonSurface == null) {
+            writeLog("Cannot draw normal button: drawing Surface is null", null);
+            return;
+        }
         Canvas canvas = null;
+        boolean posted = false;
         try {
+            writeLog("Locking normal button canvas", null);
             canvas = buttonSurface.lockCanvas(null);
+            writeLog("Normal button canvas locked", null);
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
             Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
             bg.setColor(Color.BLACK);
             canvas.drawRoundRect(0, 0, width, mainHeight, 8f*density, 8f*density, bg);
-            drawCenteredText(canvas, "停止", width/2f, mainHeight/2f, 17f*density, Color.WHITE);
+            try {
+                writeLog("Drawing normal button label without Typeface.create", null);
+                drawCenteredText(canvas, "停止", width/2f, mainHeight/2f, 17f*density, Color.WHITE);
+                writeLog("Normal button label rendered", null);
+            } catch (Throwable textError) {
+                writeLog("Normal button text renderer failed; drawing visible fallback marker", textError);
+                Paint marker = new Paint(Paint.ANTI_ALIAS_FLAG);
+                marker.setColor(Color.WHITE);
+                canvas.drawCircle(width/2f, mainHeight/2f, 5f*density, marker);
+            }
             if (safetyMode) {
                 int ch = Math.max(1, (int)(25f*density));
                 Paint cbg = new Paint(Paint.ANTI_ALIAS_FLAG);
                 cbg.setColor(Color.rgb(75,24,30));
                 canvas.drawRoundRect(0, cancelTop, width, cancelTop+ch, 7f*density, 7f*density, cbg);
-                drawCenteredText(canvas, "取消安全模式", width/2f, cancelTop+ch/2f, 12f*density, Color.WHITE);
+                try {
+                    drawCenteredText(canvas, "取消安全模式", width/2f, cancelTop+ch/2f, 12f*density, Color.WHITE);
+                } catch (Throwable textError) {
+                    writeLog("Cancel safety label renderer failed", textError);
+                }
             }
             buttonSurface.unlockCanvasAndPost(canvas);
-            writeLog("Button canvas posted with text", null);
+            posted = true;
+            writeLog("Button canvas posted with text/fallback", null);
         } catch (Throwable error) {
-            try { if (canvas != null) buttonSurface.unlockCanvasAndPost(canvas); } catch (Throwable ignored) {}
-            writeLog("Button text rendering failed", error);
+            writeLog("Normal button canvas draw failed", error);
+            if (canvas != null && !posted) {
+                try { buttonSurface.unlockCanvasAndPost(canvas); } catch (Throwable ignored) {}
+            }
         }
     }
 
