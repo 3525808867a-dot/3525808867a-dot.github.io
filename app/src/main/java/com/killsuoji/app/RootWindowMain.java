@@ -59,13 +59,7 @@ public final class RootWindowMain {
             params.gravity = Gravity.BOTTOM | Gravity.LEFT;
             params.x = Math.max(0, (int)(dm.widthPixels / 6f - 31f * density));
             params.y = (int)(34f * density);
-            try {
-                wm.addView(label, params);
-            } catch (SecurityException deniedSystemType) {
-                Log.w(TAG, "TYPE_SYSTEM_ERROR denied; retrying as Root-owned application overlay", deniedSystemType);
-                params.type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-                wm.addView(label, params);
-            }
+            wm.addView(label, params);
             Log.i(TAG, "Root window attached; uid=" + android.os.Process.myUid());
             Looper.loop();
         } catch (Throwable t) {
