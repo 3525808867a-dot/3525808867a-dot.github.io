@@ -92,7 +92,7 @@ public final class RootPermissionProbe extends Activity {
         System.out.println("探测入口已启动");
         System.out.flush();
         try {
-            if (Looper.myLooper() == null) Looper.prepareMainLooper();
+            if (Looper.myLooper() == null) Looper.prepare();
             Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
             Object thread = activityThreadClass.getMethod("systemMain").invoke(null);
             Context context = (Context) activityThreadClass
