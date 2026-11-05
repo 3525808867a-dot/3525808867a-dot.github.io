@@ -291,57 +291,37 @@ private fun HomeScreen(modifier: Modifier = Modifier, rootDetected: Boolean, isW
 
 
 private fun fetchLatestUpdate(installedVersionName: String): Pair<String, String>? {
-    val connection = URL("https://api.github.com/repos/3525808867a-dot/3525808867a-dot.github.io/releases?per_page=100")
-        .openConnection()
-    connection.connectTimeout = 10000
-    connection.readTimeout = 10000
-    connection.setRequestProperty("Accept", "application/vnd.github+json")
-    connection.setRequestProperty("User-Agent", "KillSuoji-Android")
     return try {
-        val releases = org.json.JSONArray(connection.getInputStream().bufferedReader().use { it.readText() })
+        val connection = URL("https://3525808867a-dot.github.io/latest.json").openConnection()
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+        connection.setRequestProperty("Cache-Control", "no-cache")
+        connection.setRequestProperty("User-Agent", "KillSuoji-Android")
+        val info = JSONObject(connection.getInputStream().bufferedReader().use { it.readText() })
+        if (info.optString("status") != "available") return null
+
         fun parseVersion(raw: String): List<Int>? {
-            val normalized = raw.removePrefix("v").substringBefore("-").substringBefore(" ")
+            val normalized = raw.trim().removePrefix("V").removePrefix("v")
+                .substringBefore("-").substringBefore(" ")
             val parts = normalized.split(".")
             if (parts.size != 3) return null
             return parts.map { it.toIntOrNull() ?: return null }
         }
 
         val current = parseVersion(installedVersionName) ?: return null
-
-        fun isNewer(candidate: List<Int>, baseline: List<Int>): Boolean {
-            for (i in 0..2) {
-                if (candidate[i] != baseline[i]) return candidate[i] > baseline[i]
-            }
-            return false
-        }
-
-        var bestVersion: List<Int>? = null
-        var bestResult: Pair<String, String>? = null
-
-        for (i in 0 until releases.length()) {
-            val release = releases.getJSONObject(i)
-            if (release.optBoolean("draft", false)) continue
-            val version = release.optString("tag_name").removePrefix("v")
-            val numbers = parseVersion(version) ?: continue
-            if (!isNewer(numbers, current)) continue
-
-            val assets = release.optJSONArray("assets") ?: continue
-            val apkName = numbers.joinToString(".") + ".apk"
-            var apkUrl: String? = null
-            for (j in 0 until assets.length()) {
-                val asset = assets.getJSONObject(j)
-                if (asset.optString("name") == apkName && asset.optLong("size", 0L) > 0L) {
-                    apkUrl = asset.optString("browser_download_url")
-                    break
-                }
-            }
-            if (apkUrl.isNullOrBlank()) continue
-            if (bestVersion == null || isNewer(numbers, bestVersion!!)) {
-                bestVersion = numbers
-                bestResult = Pair(numbers.joinToString("."), apkUrl!!)
+        val latestRaw = info.optString("version")
+        val latest = parseVersion(latestRaw) ?: return null
+        var newer = false
+        for (i in 0..2) {
+            if (latest[i] != current[i]) {
+                newer = latest[i] > current[i]
+                break
             }
         }
-        bestResult
+        if (!newer) return null
+        val apkUrl = info.optString("apk")
+        if (apkUrl.isBlank()) return null
+        Pair(latest.joinToString("."), apkUrl)
     } catch (_: Exception) {
         null
     }
