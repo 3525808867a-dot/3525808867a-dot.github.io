@@ -1,16 +1,16 @@
 {
   "name": "KillSuoji Android 应用",
-  "version": "V2.4.1 beta",
-  "version_code": 14,
+  "version": "V2.4.3 beta",
+  "version_code": 16,
   "status": "available",
   "updated_at": "2026-11-05",
   "download_page": "https://3525808867a-dot.github.io/",
-  "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.4.1/2.4.1.apk",
+  "apk": "https://github.com/3525808867a-dot/3525808867a-dot.github.io/releases/download/v2.4.3/2.4.3.apk",
   "features": [
     "主页：显示应用工作状态与版本信息。",
     "启动页：检测 Root 权限状态并提供执行入口。",
     "工作中连续按 5 次音量下键，返回 KillSuoji 并提示拦截成功。",
     "Root 权限监听全局音量下键，无需辅助功能授权，点击停止即可结束监听。"
   ],
-  "notice": "V2.4.1 beta 安装包构建并发布后即可下载。"
+  "notice": "V2.4.3 beta 安装包构建并发布后即可下载。"
 }
