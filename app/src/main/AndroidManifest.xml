@@ -10,6 +10,7 @@
         </activity>
         <service
             android:name=".RootVolumeMonitorService"
+            android:process=":overlay"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
