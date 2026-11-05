@@ -205,16 +205,11 @@ private fun KillSuojiApp() {
                             Toast.makeText(context, "未检测到已安装并启用的 SukiSU 模块，请先安装模块后再启动", Toast.LENGTH_LONG).show()
                             return@LaunchScreen
                         }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
-                            Toast.makeText(context, "请先允许 KillSuoji 显示悬浮窗，然后返回点击执行", Toast.LENGTH_LONG).show()
-                            context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + context.packageName)))
-                            return@LaunchScreen
-                        }
                         try {
                             context.startForegroundService(Intent(context, RootVolumeMonitorService::class.java))
                             isWorking = true
                             prefs.edit().putBoolean("is_working", true).apply()
-                            Toast.makeText(context, "工作状态已启动，点击 killzuoji 悬浮窗执行启动脚本", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Root 窗口已启动，点击 killzuoji 执行启动脚本", Toast.LENGTH_SHORT).show()
                         } catch (e: Exception) {
                             Toast.makeText(context, "工作状态启动失败：" + (e.message ?: "未知错误"), Toast.LENGTH_LONG).show()
                         }
