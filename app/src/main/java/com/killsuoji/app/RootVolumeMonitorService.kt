@@ -226,7 +226,7 @@ class RootVolumeMonitorService : Service() {
     companion object {
         private const val CHANNEL_ID = "killsuoji_root_monitor"
         private const val NOTIFICATION_ID = 2401
-        private val EVENT_TIMESTAMP = Regex("^\[\\s*(\\d+\\.\\d+)\\]")
+        private val EVENT_TIMESTAMP = Regex("^\\[\\s*(\\d+\\.\\d+)\\]")
         private val VOLUME_DOWN_NAME = Regex("\\bKEY_?VOLUMEDOWN\\b|\\bKEY_VOLUME_DOWN\\b", RegexOption.IGNORE_CASE)
         private val VOLUME_DOWN_CODE = Regex("(?:^|\\s)(?:0x0*72|114)(?:\\s|$)", RegexOption.IGNORE_CASE)
         private val KEY_DOWN_VALUE = Regex("(?:^|\\s)(?:DOWN|0x0*1|0*1)\\s*$", RegexOption.IGNORE_CASE)
